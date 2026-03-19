@@ -48,9 +48,11 @@ class BuildManager:
             await action.run(actiondir, {**target.env, **env_extension})
             print(f"[{target_name}] Built: {action.__class__.__name__}")
 
+        outputdir = Path("outputs") / workdir.name
+        outputdir.mkdir(parents=True, exist_ok=True)
         for result in target.result:
             for matched_file in actiondir.glob(result):
-                shutil.copy(matched_file, workdir)
+                shutil.copy(matched_file, outputdir)
 
         return actiondir
     

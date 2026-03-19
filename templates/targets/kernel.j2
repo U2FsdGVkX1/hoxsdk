@@ -1,0 +1,34 @@
+kernel:
+  env:
+    {%- for k, v in env.items() %}
+    {{ k }}: "{{ v }}"
+    {%- endfor %}
+    INSTALL_MOD_STRIP: "1"
+    XZ_DEFAULTS: "--check=crc32"
+    {%- if kernel.env is defined %}
+    {%- for k, v in kernel.env.items() %}
+    {{ k }}: "{{ v }}"
+    {%- endfor %}
+    {%- endif %}
+  actions:
+    - use: git
+      src: {{ kernel.src }}
+      {%- if kernel.branch is defined %}
+      branch: {{ kernel.branch }}
+      {%- endif %}
+    {%- if kernel.prebuild is defined and kernel.prebuild %}
+{{ kernel.prebuild | indent(4, first=True) }}
+    {%- endif %}
+    - use: make
+      args: {{ kernel.config | default('defconfig') }}
+    - use: make
+      {%- if kernel.args is defined %}
+      args: {{ kernel.args }}
+      {%- endif %}
+    {%- if kernel.postbuild is defined and kernel.postbuild %}
+{{ kernel.postbuild | indent(4, first=True) }}
+    {%- endif %}
+  result:
+    {%- for r in kernel.result | default(['vmlinux']) %}
+    - "{{ r }}"
+    {%- endfor %}

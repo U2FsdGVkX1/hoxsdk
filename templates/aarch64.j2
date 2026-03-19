@@ -1,0 +1,13 @@
+{%- set env = {
+    'CROSS_COMPILE': 'aarch64-linux-gnu-',
+    'ARCH': 'arm64',
+    'RPMARCH': 'aarch64'
+} %}
+
+{%- if uboot is defined %}
+{% include "targets/uboot.j2" %}
+{%- endif %}
+
+{%- if kernel is defined %}
+{% include "targets/kernel.j2" %}
+{%- endif %}

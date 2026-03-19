@@ -1,0 +1,17 @@
+{%- set env = {
+    'CROSS_COMPILE': 'riscv64-linux-gnu-',
+    'ARCH': 'riscv',
+    'RPMARCH': 'riscv64'
+} %}
+
+{%- if uboot is defined %}
+{% include "targets/uboot.j2" %}
+{%- endif %}
+
+{%- if opensbi is defined %}
+{% include "targets/opensbi.j2" %}
+{%- endif %}
+
+{%- if kernel is defined %}
+{% include "targets/kernel.j2" %}
+{%- endif %}

@@ -3,7 +3,6 @@ import argparse
 import yaml
 import shutil
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 from typing import Dict, Optional
 from fmhelper import Target
 
@@ -79,26 +78,10 @@ async def parse_arguments() -> argparse.Namespace:
 
 async def prepare_boardconfig(board_name: str) -> Dict:
     boarddir = Path(f"boards/{board_name}").resolve()
-    root = Path(".").resolve()
-
-    env = Environment(loader=FileSystemLoader('templates'))
-    env.globals['ROOT'] = str(root)
-    env.globals['BDIR'] = str(boarddir)
-
-    values_file = boarddir / "values.yaml"
-    if values_file.exists():
-        with open(values_file, "r") as file:
-            template = env.from_string(file.read())
-            rendered_values = template.render()
-            values: Dict = yaml.safe_load(rendered_values)
-    else:
-        values = {}
 
     config_file = boarddir / "config.yaml"
     with open(config_file, "r") as file:
-        template = env.from_string(file.read())
-        rendered_config = template.render(**values)
-        config = yaml.safe_load(rendered_config)
+        config = yaml.safe_load(file) or {}
     return config
 
 async def main():

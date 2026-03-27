@@ -1,7 +1,0 @@
-uboot:
-  src: https://github.com/u-boot/u-boot
-  config: qemu-riscv64_smode_defconfig
-opensbi:
-  src: https://github.com/riscv-software-src/opensbi
-kernel:
-  src: https://github.com/torvalds/linux

@@ -35,5 +35,11 @@ kernel:
     - use: make
       args: defconfig
     - use: make
+    - use: make
+      args: INSTALL_MOD_PATH=modules DEPMOD=true modules_install
+    - use: make
+      args: INSTALL_DTBS_PATH=dtbs dtbs_install
   result:
-    - vmlinux
+    - arch/*/boot/Image.gz
+    - modules
+    - dtbs

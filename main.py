@@ -1,98 +1,66 @@
 import asyncio
 import argparse
-import yaml
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
-from fmhelper import Target
+import yaml
 
-class BuildManager:
-    name: str
-    config: Dict
-    targets: Dict[str, Target] = {}
-    running_tasks: Dict[str, asyncio.Task] = {}
+from build_manager import BuildManager
+from image_manager import ImageManager
 
-    def __init__(self, name: str, config: Dict):
-        self.name = name
-        self.config = config
-        for name, target in self.config.items():
-            self.targets[name] = Target(target)
 
-    async def build_target(self, target_name: str, workdir: Path) -> Path:
-        target = self.targets[target_name]
+class Args(argparse.Namespace):
+    board: str
+    adapter: str
+    arch: str
+    desktop: str
+    skipbuild: bool
+    skipimage: bool
 
-        for require in target.requires:
-            if not shutil.which(require):
-                raise EnvironmentError(f"Required tool '{require}' not found in PATH")
 
-        for depend in target.depends:
-            await self.running_tasks[depend]
-
-        actiondir = workdir / target_name
-        if actiondir.exists():
-            shutil.rmtree(actiondir)
-        actiondir.mkdir(parents=True, exist_ok=True)
-
-        for action in target.actions:
-            env_extension: dict[str, str] = {}
-            env_file = actiondir / ".env"
-            if env_file.exists():
-                with open(env_file, "r") as file:
-                    for line in file:
-                        line = line.strip()
-                        if not line or '=' not in line:
-                            continue
-                        key, value = line.split("=", 1)
-                        env_extension[key] = value
-            await action.run(actiondir, {**target.env, **env_extension})
-            print(f"[{target_name}] Built: {action.__class__.__name__}")
-
-        outputdir = Path("outputs") / workdir.name
-        outputdir.mkdir(parents=True, exist_ok=True)
-        for result in target.result:
-            for matched_file in actiondir.glob(result):
-                shutil.copy(matched_file, outputdir)
-
-        return actiondir
-    
-    async def execute_build_target(self, workdir: Path, target_filter: Optional[str] = None) -> Path:
-        builddir = (workdir / self.name).resolve()
-        builddir.mkdir(parents=True, exist_ok=True)
-
-        for name, target in self.targets.items():
-            if target_filter:
-                if name not in ([target_filter] + target.depends):
-                    continue
-            self.running_tasks[name] = asyncio.create_task(
-                self.build_target(name, builddir),
-                name=f"{self.name}/{name}"
-            )
-        await asyncio.gather(*self.running_tasks.values())
-        return builddir
-
-async def parse_arguments() -> argparse.Namespace:
+def parse_arguments() -> Args:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-b", "--board", type=str, help="Board name")
-    parser.add_argument("-t", "--target", type=str, help="Target to build")
-    return parser.parse_args()
+    parser.add_argument("-b", "--board", type=str, required=True, help="Board name")
+    parser.add_argument("-a", "--adapter", type=str, required=True, help="Image adapter name")
+    parser.add_argument("--arch", type=str, default="x86_64", help="Architecture name")
+    parser.add_argument("--desktop", type=str, default="minimal", help="Desktop profile name")
+    parser.add_argument("--skipbuild", action="store_true", help="Skip build stage")
+    parser.add_argument("--skipimage", action="store_true", help="Skip image stage")
+    return parser.parse_args(namespace=Args())
 
-async def prepare_boardconfig(board_name: str) -> Dict:
-    boarddir = Path(f"boards/{board_name}").resolve()
-
-    config_file = boarddir / "config.yaml"
-    with open(config_file, "r") as file:
-        config = yaml.safe_load(file) or {}
-    return config
 
 async def main():
-    args = await parse_arguments()
-    if not args.board:
-        print("Error: --board is required for build operations")
-        return
+    # Determine root directory
+    root = Path(__file__).resolve().parent
 
-    config = await prepare_boardconfig(args.board)
-    manager = BuildManager(args.board.split("/")[-1], config)
-    resultdir = await manager.execute_build_target(Path('build'), args.target)
+    # Validate directory
+    boarddir = (root / "boards" / args.board).resolve()
+    builddir = (root / "build" / args.board).resolve()
+    outputdir = (root / "outputs" / args.board).resolve()
+    builddir.mkdir(parents=True, exist_ok=True)
+    outputdir.mkdir(parents=True, exist_ok=True)
 
+    # build
+    if not args.skipbuild:
+        config_file = boarddir / "config.yaml"
+        with config_file.open("r") as file:
+            config = yaml.safe_load(file) or {}
+        build_manager = BuildManager(config, builddir, outputdir)
+        await build_manager.build()
+
+    # image
+    if not args.skipimage:
+        adapterdir = (root / "adapters" / args.adapter).resolve()
+        image_manager = ImageManager(
+            boarddir,
+            adapterdir,
+            builddir,
+            outputdir,
+            args.arch,
+            args.desktop,
+        )
+        await asyncio.create_task(image_manager.generate(), name="_image")
+        print(f"[image] Generated outputs in: {outputdir}")
+
+args = parse_arguments()
 if __name__ == "__main__":
     asyncio.run(main())

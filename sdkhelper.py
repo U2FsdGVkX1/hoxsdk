@@ -3,7 +3,7 @@ import importlib
 import sys
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from abc import ABC, abstractmethod
 
 class Action(ABC):
@@ -39,11 +39,12 @@ class Target:
         self.actions = [Action.create(action) for action in target_config.get("actions", [])]
         self.result = target_config.get("result", [])
 
-async def shell(cmd: str, cwd: Path, env: Dict[str, str]) -> Tuple[asyncio.subprocess.Process, bytes, bytes]:
+async def shell(cmd: str, cwd: Optional[Path] = None, env: Dict[str, str] = {}) -> Tuple[asyncio.subprocess.Process, bytes, bytes]:
     def _log_file() -> Path:
+        import main
         task = asyncio.current_task()
         task_name = task.get_name() if task else "main"
-        log_file = Path("logs") / f"{task_name}.log"
+        log_file = Path("logs") / main.args.board / f"{task_name}.log"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         return log_file
 
@@ -74,4 +75,9 @@ async def shell(cmd: str, cwd: Path, env: Dict[str, str]) -> Tuple[asyncio.subpr
         )
 
     await process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(
+            f"Command failed with exit code {process.returncode}: {cmd}\n"
+            f"{stderr_data.decode(errors='replace')}"
+        )
     return process, stdout_data, stderr_data

@@ -1,104 +1,12 @@
+local arch = 'riscv64';
+local common = (import './common.jsonnet')(arch);
+
 {
-  arch: 'riscv64',
-
-  partitions: [
-    {
-      name: 'rootfs',
-      mountpoint: '/',
-      size: '15G',
-      mkfs: 'mkfs.ext4',
-    },
-    {
-      name: 'boot',
-      mountpoint: '/boot',
-      size: '1G',
-      mkfs: 'mkfs.ext4',
-    },
-    {
-      name: 'efi',
-      mountpoint: '/boot/efi',
-      size: '500M',
-      mkfs: 'mkfs.fat -F 32',
-    },
-  ],
-
+  arch: arch,
+  partitions: common.partitions,
   targets: {
-    uboot: {
-      env: {
-        CROSS_COMPILE: 'riscv64-linux-gnu-',
-        ARCH: 'riscv',
-      },
-      actions: [
-        {
-          use: 'git',
-          src: 'https://github.com/u-boot/u-boot',
-        },
-        {
-          use: 'make',
-          args: 'qemu-riscv64_smode_defconfig',
-        },
-        {
-          use: 'make',
-        },
-      ],
-      result: [
-        'u-boot.bin',
-      ],
-    },
-
-    opensbi: {
-      env: {
-        CROSS_COMPILE: 'riscv64-linux-gnu-',
-        ARCH: 'riscv',
-      },
-      actions: [
-        {
-          use: 'git',
-          src: 'https://github.com/riscv-software-src/opensbi',
-        },
-        {
-          use: 'make',
-          args: 'PLATFORM=generic',
-        },
-      ],
-      result: [
-        'build/platform/generic/firmware/fw_dynamic.bin',
-      ],
-    },
-
-    kernel: {
-      env: {
-        CROSS_COMPILE: 'riscv64-linux-gnu-',
-        ARCH: 'riscv',
-        INSTALL_MOD_STRIP: '1',
-        XZ_DEFAULTS: '--check=crc32',
-      },
-      actions: [
-        {
-          use: 'git',
-          src: 'https://github.com/torvalds/linux',
-        },
-        {
-          use: 'make',
-          args: 'defconfig',
-        },
-        {
-          use: 'make',
-        },
-        {
-          use: 'make',
-          args: 'INSTALL_MOD_PATH=modules DEPMOD=true modules_install',
-        },
-        {
-          use: 'make',
-          args: 'INSTALL_DTBS_PATH=dtb dtbs_install',
-        },
-      ],
-      result: [
-        'arch/*/boot/Image.gz',
-        'modules',
-        'dtb',
-      ],
-    },
+    opensbi: common.opensbi('https://github.com/riscv-software-src/opensbi'),
+    uboot: common.uboot('https://github.com/u-boot/u-boot', 'qemu-riscv64_smode_defconfig'),
+    kernel: common.kernel('https://github.com/torvalds/linux', 'defconfig'),
   },
 }

@@ -3,5 +3,5 @@ while read -r uuid mountpoint fstype; do
     if [ -z "$mountpoint_r" ]; then
         mountpoint_r="/"
     fi
-    echo -e "UUID=${uuid}\t${mountpoint_r}\t${fstype}\tdefaults\t0 0" >> "$ROOTFS/etc/fstab"
+    printf 'UUID=%s\t%s\t%s\tdefaults\t0 0\n' "$uuid" "$mountpoint_r" "$fstype" >> "$ROOTFS/etc/fstab"
 done < <(findmnt -Rln -o UUID,TARGET,FSTYPE "$ROOTFS")

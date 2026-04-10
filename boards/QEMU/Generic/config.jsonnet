@@ -91,13 +91,13 @@
         },
         {
           use: 'make',
-          args: 'INSTALL_DTBS_PATH=dtbs dtbs_install',
+          args: 'INSTALL_DTBS_PATH=dtb dtbs_install',
         },
       ],
       result: [
         'arch/*/boot/Image.gz',
         'modules',
-        'dtbs',
+        'dtb',
       ],
     },
   },

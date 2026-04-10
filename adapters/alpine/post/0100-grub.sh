@@ -17,6 +17,6 @@ case "${ARCH}" in
         ;;
 esac
 
+chroot_rootfs apk add grub-efi
 chroot_rootfs grub-install --modules="part_gpt" --target=${grub_target} \
                            --efi-directory=/boot/efi --removable
-chroot_rootfs update-grub

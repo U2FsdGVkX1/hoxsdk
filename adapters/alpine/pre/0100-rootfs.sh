@@ -28,4 +28,4 @@ cat > "$ROOTFS/etc/apk/repositories" <<'EOF'
 https://mirrors.nju.edu.cn/alpine/v3.23/main
 https://mirrors.nju.edu.cn/alpine/v3.23/community
 EOF
-chroot_rootfs apk add alpine-base mkinitfs grub-efi
+chroot_rootfs apk add alpine-base

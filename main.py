@@ -1,8 +1,8 @@
 import asyncio
 import argparse
-import shutil
+import json
+import _jsonnet
 from pathlib import Path
-import yaml
 
 from build_manager import BuildManager
 from image_manager import ImageManager
@@ -11,7 +11,6 @@ from image_manager import ImageManager
 class Args(argparse.Namespace):
     board: str
     adapter: str
-    arch: str
     desktop: str
     skipbuild: bool
     skipimage: bool
@@ -21,7 +20,6 @@ def parse_arguments() -> Args:
     parser = argparse.ArgumentParser()
     parser.add_argument("-b", "--board", type=str, required=True, help="Board name")
     parser.add_argument("-a", "--adapter", type=str, required=True, help="Image adapter name")
-    parser.add_argument("--arch", type=str, default="x86_64", help="Architecture name")
     parser.add_argument("--desktop", type=str, default="minimal", help="Desktop profile name")
     parser.add_argument("--skipbuild", action="store_true", help="Skip build stage")
     parser.add_argument("--skipimage", action="store_true", help="Skip image stage")
@@ -39,26 +37,33 @@ async def main():
     builddir.mkdir(parents=True, exist_ok=True)
     outputdir.mkdir(parents=True, exist_ok=True)
 
+    # Config
+    content = _jsonnet.evaluate_file(
+        str(boarddir / "config.jsonnet"),
+        ext_vars={"BDIR": str(boarddir)},
+    )
+    config = json.loads(content)
+
     # build
     if not args.skipbuild:
-        config_file = boarddir / "config.yaml"
-        with config_file.open("r") as file:
-            content = file.read()
-            content = content.replace("{{ BDIR }}", str(boarddir))
-            config = yaml.safe_load(content) or {}
-        build_manager = BuildManager(config, builddir, outputdir)
+        build_manager = BuildManager(
+            config.get("targets", {}),
+            builddir,
+            outputdir,
+        )
         await build_manager.build()
 
     # image
     if not args.skipimage:
         adapterdir = (root / "adapters" / args.adapter).resolve()
         image_manager = ImageManager(
+            config["arch"],
+            args.desktop,
+            config.get("partitions", []),
             boarddir,
             adapterdir,
             builddir,
             outputdir,
-            args.arch,
-            args.desktop,
         )
         await asyncio.create_task(image_manager.generate(), name="_image")
         print(f"[image] Generated outputs in: {outputdir}")

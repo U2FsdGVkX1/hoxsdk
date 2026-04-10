@@ -8,24 +8,24 @@ from sdkhelper import shell
 class ImageManager:
     def __init__(
         self,
+        arch: str,
+        desktop: str,
+        partitions: list[dict],
         boarddir: Path,
         adapterdir: Path,
         builddir: Path,
         outputdir: Path,
-        arch: str,
-        desktop: str,
     ):
         if not shutil.which("genimage"):
             raise EnvironmentError("Required tool 'genimage' not found in PATH")
 
+        self.arch = arch
+        self.desktop = desktop
+        self.partitions = partitions
         self.boarddir = boarddir.resolve()
         self.adapterdir = adapterdir.resolve()
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
-        self.arch = arch
-        self.desktop = desktop
-        self.partitions_file = self.boarddir / "partitions"
-        self.genimage_cfg = self.boarddir / "genimage.cfg"
 
     def _build_env(self, rootfs: Path) -> dict[str, str]:
         return {
@@ -42,20 +42,18 @@ class ImageManager:
         }
 
     async def _load_partitions(self, workdir: Path, rootfs: Path) -> list[tuple[Path, Path]]:
-        if not self.partitions_file.is_file():
-            return []
-
         partitions = []
-        with self.partitions_file.open("r") as file:
-            for line in file:
-                line = line.strip()
-                name, mountpoint, size, mkfs_cmd = line.split(",", 3)
-                image = workdir / f"{name}.img"
-                mountdir = rootfs if mountpoint == "/" else rootfs / mountpoint.lstrip("/")
+        for partition in self.partitions:
+            name = partition["name"]
+            mountpoint = partition["mountpoint"]
+            size = partition["size"]
+            mkfs_cmd = partition["mkfs"]
 
-                await shell(f"truncate -s {quote(size)} {quote(str(image))}")
-                await shell(f"{mkfs_cmd} {quote(str(image))}")
-                partitions.append((image, mountdir))
+            image = workdir / f"{name}.img"
+            mountdir = rootfs if mountpoint == "/" else rootfs / mountpoint.lstrip("/")
+            await shell(f"truncate -s {quote(size)} {quote(str(image))}")
+            await shell(f"{mkfs_cmd} {quote(str(image))}")
+            partitions.append((image, mountdir))
         return partitions
 
     async def _source_scripts(self, rootfs: Path, env: dict[str, str]) -> None:
@@ -93,9 +91,11 @@ class ImageManager:
             await self._source_scripts(rootfs, env)
         finally:
             await shell(f"grep {quote(str(rootfs))} /proc/mounts | cut -d' ' -f2 | sort -r | xargs -r umount")
+        
+        genimage_cfg = self.boarddir / "genimage.cfg"
         await shell(
             f"genimage "
-            f"--config {quote(str(self.genimage_cfg))} "
+            f"--config {quote(str(genimage_cfg))} "
             f"--inputpath {quote(str(workdir))} "
             f"--outputpath {quote(str(self.outputdir))}",
         )

@@ -7,12 +7,12 @@ from sdkhelper import Target
 
 
 class BuildManager:
-    def __init__(self, config: Dict, builddir: Path, outputdir: Path):
+    def __init__(self, targets: Dict, builddir: Path, outputdir: Path):
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
         self.targets: dict[str, Target] = {
             name: Target(target_config)
-            for name, target_config in config.items()
+            for name, target_config in targets.items()
         }
         self.running_tasks: dict[str, asyncio.Task] = {}
 

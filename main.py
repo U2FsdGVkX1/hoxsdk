@@ -43,7 +43,9 @@ async def main():
     if not args.skipbuild:
         config_file = boarddir / "config.yaml"
         with config_file.open("r") as file:
-            config = yaml.safe_load(file) or {}
+            content = file.read()
+            content = content.replace("{{ BDIR }}", str(boarddir))
+            config = yaml.safe_load(content) or {}
         build_manager = BuildManager(config, builddir, outputdir)
         await build_manager.build()
 

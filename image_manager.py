@@ -50,7 +50,7 @@ class ImageManager:
             mkfs_cmd = partition["mkfs"]
 
             image = workdir / f"{name}.img"
-            mountdir = rootfs if mountpoint == "/" else rootfs / mountpoint.lstrip("/")
+            mountdir = rootfs / mountpoint.lstrip("/")
             await shell(f"truncate -s {quote(size)} {quote(str(image))}")
             await shell(f"{mkfs_cmd} {quote(str(image))}")
             partitions.append((image, mountdir))

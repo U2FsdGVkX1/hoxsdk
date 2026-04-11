@@ -52,23 +52,27 @@ local envs = {
 };
 
 function(arch) {
+  local KiB = 1024,
+  local MiB = 1024 * KiB,
+  local GiB = 1024 * MiB,
+
   partitions: [
     {
       name: 'rootfs',
       mountpoint: '/',
-      size: '15G',
+      size: 15 * GiB,
       mkfs: 'mkfs.ext4',
     },
     {
       name: 'boot',
       mountpoint: '/boot',
-      size: '1G',
+      size: 1 * GiB,
       mkfs: 'mkfs.ext4',
     },
     {
       name: 'efi',
       mountpoint: '/boot/efi',
-      size: '500M',
+      size: 500 * MiB,
       mkfs: 'mkfs.fat -F 32',
     },
   ],

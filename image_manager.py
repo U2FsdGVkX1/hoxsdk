@@ -51,7 +51,8 @@ class ImageManager:
 
             image = workdir / f"{name}.img"
             mountdir = rootfs / mountpoint.lstrip("/")
-            await shell(f"truncate -s {quote(size)} {quote(str(image))}")
+            with image.open("wb") as f:
+                f.truncate(size)
             await shell(f"{mkfs_cmd} {quote(str(image))}")
             partitions.append((image, mountdir))
         return partitions

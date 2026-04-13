@@ -1,10 +1,11 @@
 import asyncio
 import importlib
-import sys
 import os
+import sys
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from abc import ABC, abstractmethod
+
 
 class Action(ABC):
     @abstractmethod
@@ -12,8 +13,8 @@ class Action(ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def create(action_config: dict) -> 'Action':
-        use = action_config.get('use')
+    def create(action_config: dict) -> "Action":
+        use = action_config.get("use")
         if not use:
             raise ValueError("Action must have 'use' field")
 
@@ -22,8 +23,13 @@ class Action(ABC):
         if not action_class:
             raise ValueError(f"Action class '{use.capitalize()}Action' not found")
 
-        action_config.pop('use')
-        return action_class(**action_config)
+        action_kwargs = {
+            key: value
+            for key, value in action_config.items()
+            if key != "use"
+        }
+        return action_class(**action_kwargs)
+
 
 class Target:
     requires: List[str]
@@ -36,12 +42,21 @@ class Target:
         self.requires = target_config.get("requires", [])
         self.depends = target_config.get("depends", [])
         self.env = target_config.get("env", {})
-        self.actions = [Action.create(action) for action in target_config.get("actions", [])]
+        self.actions = [
+            Action.create(action)
+            for action in target_config.get("actions", [])
+        ]
         self.result = target_config.get("result", [])
 
-async def shell(cmd: str, cwd: Optional[Path] = None, env: Dict[str, str] = {}) -> Tuple[asyncio.subprocess.Process, bytes, bytes]:
+
+async def shell(
+    cmd: str,
+    cwd: Optional[Path] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Tuple[asyncio.subprocess.Process, bytes, bytes]:
     def _log_file() -> Path:
         import main
+
         task = asyncio.current_task()
         task_name = task.get_name() if task else "main"
         log_file = Path("logs") / main.args.board / f"{task_name}.log"
@@ -51,7 +66,7 @@ async def shell(cmd: str, cwd: Optional[Path] = None, env: Dict[str, str] = {}) 
     process = await asyncio.create_subprocess_shell(
         cmd,
         cwd=cwd,
-        env={**os.environ, **env},
+        env={**os.environ, **({} if env is None else env)},
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         shell=True,

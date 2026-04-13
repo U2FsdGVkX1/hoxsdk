@@ -4,7 +4,7 @@ import json
 import _jsonnet
 from pathlib import Path
 
-from build_manager import BuildManager
+from build_manager import BuildManager, DebugConfig
 from image_manager import ImageManager
 
 
@@ -14,6 +14,24 @@ class Args(argparse.Namespace):
     desktop: str
     skipbuild: bool
     skipimage: bool
+    debug_raw: str
+    debug: list[DebugConfig]
+
+
+def parse_debug(value: str) -> list[DebugConfig]:
+    items = []
+    for part in value.split(","):
+        if not part:
+            continue
+
+        target_name, separator, action_index = part.partition(":")
+        if not separator:
+            action_index = "*"
+        elif not action_index:
+            action_index = "*"
+
+        items.append(DebugConfig(target_name, action_index))
+    return items
 
 
 def parse_arguments() -> Args:
@@ -23,7 +41,22 @@ def parse_arguments() -> Args:
     parser.add_argument("--desktop", type=str, default="minimal", help="Desktop profile name")
     parser.add_argument("--skipbuild", action="store_true", help="Skip build stage")
     parser.add_argument("--skipimage", action="store_true", help="Skip image stage")
-    return parser.parse_args(namespace=Args())
+    parser.add_argument(
+        "--debug",
+        dest="debug_raw",
+        type=str,
+        default="",
+        metavar="TARGET[:INDEX][,...]",
+        help=(
+            "Debug breakpoints. '*' matches all targets/actions; 'kernel' means "
+            "kernel:*; '*:1' matches action 1 on all targets; 'kernel:*' matches "
+            "all kernel actions; 'kernel:1' matches action 1 on kernel"
+        ),
+    )
+
+    args = parser.parse_args(namespace=Args())
+    args.debug = parse_debug(args.debug_raw)
+    return args
 
 
 async def main():
@@ -50,6 +83,7 @@ async def main():
             config.get("targets", {}),
             builddir,
             outputdir,
+            args.debug,
         )
         await build_manager.build()
 

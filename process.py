@@ -1,59 +1,15 @@
 import asyncio
-import importlib
 import os
 import sys
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
-
-class Action(ABC):
-    @abstractmethod
-    async def run(self, cwd: Path, env: Dict[str, str]) -> None:
-        raise NotImplementedError()
-
-    @staticmethod
-    def create(action_config: dict) -> "Action":
-        use = action_config.get("use")
-        if not use:
-            raise ValueError("Action must have 'use' field")
-
-        module = importlib.import_module(f"actions.{use}")
-        action_class = module.__dict__.get(f"{use.capitalize()}Action")
-        if not action_class:
-            raise ValueError(f"Action class '{use.capitalize()}Action' not found")
-
-        action_kwargs = {
-            key: value
-            for key, value in action_config.items()
-            if key != "use"
-        }
-        return action_class(**action_kwargs)
-
-
-class Target:
-    requires: List[str]
-    depends: List[str]
-    env: Dict[str, str]
-    actions: List[Action]
-    result: List[str]
-
-    def __init__(self, target_config: dict) -> None:
-        self.requires = target_config.get("requires", [])
-        self.depends = target_config.get("depends", [])
-        self.env = target_config.get("env", {})
-        self.actions = [
-            Action.create(action)
-            for action in target_config.get("actions", [])
-        ]
-        self.result = target_config.get("result", [])
+from typing import Optional
 
 
 async def shell(
     cmd: str,
     cwd: Optional[Path] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> Tuple[asyncio.subprocess.Process, bytes, bytes]:
+    env: Optional[dict[str, str]] = None,
+) -> tuple[asyncio.subprocess.Process, bytes, bytes]:
     def _log_file() -> Path:
         import main
 

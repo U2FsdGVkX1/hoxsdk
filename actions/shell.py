@@ -1,11 +1,8 @@
 from pathlib import Path
-from dataclasses import dataclass, field
 
-from sdkhelper import Action, shell
+from process import shell
 
-@dataclass
-class ShellAction(Action):
-    cmds: list = field(default_factory=list)
-    async def run(self, cwd: Path, env: dict) -> None:
-        for cmd in self.cmds:
-            await shell(cmd, cwd, env)
+
+async def run(action: dict, cwd: Path, env: dict[str, str]) -> None:
+    for cmd in action.get("cmds", []):
+        await shell(cmd, cwd, env)

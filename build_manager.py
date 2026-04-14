@@ -1,11 +1,19 @@
 import asyncio
+import importlib
 import os
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict
+from typing import Any
 
-from sdkhelper import Target
+
+@dataclass(frozen=True)
+class Target:
+    requires: list[str] = field(default_factory=list)
+    depends: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    actions: list[dict[str, Any]] = field(default_factory=list)
+    result: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -18,22 +26,39 @@ class DebugConfig:
         matches_action = self.action_index == "*" or self.action_index == str(action_index)
         return matches_target and matches_action
 
+
 class BuildManager:
     def __init__(
         self,
-        targets: Dict,
+        targets: dict[str, dict[str, Any]],
         builddir: Path,
         outputdir: Path,
         debug: list[DebugConfig] = [],
     ):
         self.targets: dict[str, Target] = {
-            name: Target(target_config)
+            name: Target(
+                requires=target_config.get("requires", []),
+                depends=target_config.get("depends", []),
+                env=target_config.get("env", {}),
+                actions=target_config.get("actions", []),
+                result=target_config.get("result", []),
+            )
             for name, target_config in targets.items()
         }
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
-        self.debug: list[DebugConfig] = debug
-        self.running_tasks: dict[str, asyncio.Task] = {}
+        self.debug = debug
+        self.running_tasks: dict[str, asyncio.Task[Path]] = {}
+    
+    def _ensure_task(self, target_name: str) -> asyncio.Task[Path]:
+        if target_name not in self.targets:
+            raise ValueError(f"Unknown target '{target_name}'")
+        if target_name not in self.running_tasks:
+            self.running_tasks[target_name] = asyncio.create_task(
+                self.build_target(target_name),
+                name=target_name,
+            )
+        return self.running_tasks[target_name]
 
     def _load_env_file(self, env_file: Path) -> dict[str, str]:
         env_extension: dict[str, str] = {}
@@ -75,18 +100,15 @@ class BuildManager:
         for require in target.requires:
             if not shutil.which(require):
                 raise EnvironmentError(f"Required tool '{require}' not found in PATH")
-
-        for depend in target.depends:
-            await self.running_tasks[depend]
+        await asyncio.gather(*(self._ensure_task(depend) for depend in target.depends))
 
         actiondir = self.builddir / target_name
         if actiondir.exists():
             shutil.rmtree(actiondir)
         actiondir.mkdir(parents=True, exist_ok=True)
-
         for action_index, action in enumerate(target.actions):
-            env_file = actiondir / ".env"
-            env_extension = self._load_env_file(env_file)
+            use: str = action["use"]
+            env_extension = self._load_env_file(actiondir / ".env")
             if any(
                 item.matches(target_name, action_index)
                 for item in self.debug
@@ -94,12 +116,16 @@ class BuildManager:
                 await self._open_debug_shell(
                     target_name,
                     action_index,
-                    action.__class__.__name__,
+                    use,
                     actiondir,
                     {**target.env, **env_extension},
                 )
-            await action.run(actiondir, {**target.env, **env_extension})
-            print(f"[{target_name}] Built: {action.__class__.__name__}")
+
+            module = importlib.import_module(f"actions.{use}")
+            runner = getattr(module, "run", None)
+            if runner is None:
+                raise ValueError(f"Action '{use}' must export run()")
+            await runner(action, actiondir, {**target.env, **env_extension})
 
         for result in target.result:
             for matched_file in actiondir.glob(result):
@@ -107,10 +133,7 @@ class BuildManager:
         return actiondir
 
     async def build(self):
-        for name in self.targets:
-            self.running_tasks[name] = asyncio.create_task(
-                self.build_target(name),
-                name=name,
-            )
         if self.running_tasks:
             await asyncio.gather(*self.running_tasks.values())
+            return
+        await asyncio.gather(*(self._ensure_task(name) for name in self.targets))

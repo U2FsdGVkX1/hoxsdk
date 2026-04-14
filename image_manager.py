@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 from shlex import quote
 
-from sdkhelper import shell
+from process import shell
 
 
 class ImageManager:

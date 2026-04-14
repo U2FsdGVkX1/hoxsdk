@@ -1,12 +1,9 @@
 import os
 from pathlib import Path
-from dataclasses import dataclass
 
-from sdkhelper import Action, shell
+from process import shell
 
-@dataclass
-class MakeAction(Action):
-    args: str = ""
-    async def run(self, cwd: Path, env: dict) -> None:
-        cmd = f"make -j{os.cpu_count()} {self.args}"
-        await shell(cmd, cwd=cwd, env=env)
+
+async def run(action: dict, cwd: Path, env: dict[str, str]) -> None:
+    args = action.get("args", "")
+    await shell(f"make -j{os.cpu_count()} {args}", cwd=cwd, env=env)

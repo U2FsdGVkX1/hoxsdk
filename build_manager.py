@@ -136,4 +136,8 @@ class BuildManager:
         if self.running_tasks:
             await asyncio.gather(*self.running_tasks.values())
             return
-        await asyncio.gather(*(self._ensure_task(name) for name in self.targets))
+        if self.debug:
+            for name in self.targets:
+                await self._ensure_task(name)
+        else:
+            await asyncio.gather(*(self._ensure_task(name) for name in self.targets))

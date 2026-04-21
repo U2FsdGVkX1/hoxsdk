@@ -1,5 +1,5 @@
 local arch = 'riscv64';
-local common = (import './common.jsonnet')(arch);
+local common = (import '../../common.jsonnet')(arch);
 
 {
   arch: arch,

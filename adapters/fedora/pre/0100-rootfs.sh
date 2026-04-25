@@ -23,4 +23,4 @@ dnf5 --forcearch="$ARCH" \
      --disablerepo="*" \
      --repofrompath=base,"$repo_url" \
      --installroot="$ROOTFS" \
-     install -y @core @hardware-support glibc-all-langpacks -x kernel-core -x kernel-modules -x kernel-modules-core -x kernel-modules-extra
+     install -y @core @hardware-support glibc-all-langpacks NetworkManager-wifi -x kernel-core -x kernel-modules -x kernel-modules-core -x kernel-modules-extra

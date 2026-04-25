@@ -77,7 +77,8 @@ function(arch) {
     },
   ],
 
-  target(name, actions, result):: {
+  target(name, actions, result, requires=[]):: {
+    requires: requires,
     env: envs[arch][name],
     actions: actions,
     result: result,
@@ -95,7 +96,7 @@ function(arch) {
         args: args,
       },
     ] + postbuild;
-    self.target('opensbi', actions, result),
+    self.target('opensbi', actions, result, ['git', 'patch', 'make']),
 
   uboot(repourl, defconfig, args='', prebuild=[], postbuild=[], result=['u-boot.bin'])::
     local actions = [
@@ -113,7 +114,7 @@ function(arch) {
         args: args,
       },
     ] + postbuild;
-    self.target('uboot', actions, result),
+    self.target('uboot', actions, result, ['git', 'patch', 'make']),
 
   kernel(repourl, defconfig, args='', prebuild=[], postbuild=[], result=['arch/*/boot/Image.gz', 'modules', 'dtb'])::
     local actions = [
@@ -139,5 +140,5 @@ function(arch) {
         args: 'INSTALL_DTBS_PATH=dtb dtbs_install',
       },
     ] + postbuild;
-    self.target('kernel', actions, result),
+    self.target('kernel', actions, result, ['git', 'patch', 'make']),
 }

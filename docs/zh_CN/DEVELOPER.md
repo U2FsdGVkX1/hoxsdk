@@ -101,27 +101,19 @@
 
 ## 调试
 
-格式：
+`--debug` 接受以下格式的断点匹配：
 
 ```text
 TARGET[:INDEX][,...]
 ```
 
-规则：
-
-- `INDEX` 为动作下标，从 `0` 开始
-- 省略 `:INDEX` 时，等价于 `:*`
-- `*` 可匹配全部 target 或全部 action
-- `--debug` 不带值时，等价于 `--debug '*'`
-- `--skipbuild --skipimage --debug` 只输出解析后的 Jsonnet 配置，不执行构建或镜像阶段
-
-示例：
-
+- `*` 匹配全部 target 或 action
 - `kernel` 表示 `kernel:*`
-- `*:0` 表示所有 target 的第 `0` 个 action
-- `kernel:1` 表示仅在 `kernel` 的第 `1` 个 action 执行前暂停
+- `*:1` 匹配所有 target 的第 `1` 个 action
+- `kernel:*` 匹配 `kernel` 的所有 action
+- `kernel:1` 匹配 `kernel` 的第 `1` 个 action
 
-调试 Shell 的工作目录是 `build/<board>/<target>/`，退出后构建继续执行
+`--debug` 不带值时等价于 `--debug '*'`。使用 `--skipbuild --skipimage --debug` 可以只输出解析后的 Jsonnet 配置。
 
 ## 镜像阶段
 

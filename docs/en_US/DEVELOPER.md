@@ -101,27 +101,19 @@ Every action must include a `use` field. `BuildManager` loads `actions/<use>.py`
 
 ## Debugging
 
-Format:
+`--debug` accepts breakpoint patterns in this format:
 
 ```text
 TARGET[:INDEX][,...]
 ```
 
-Rules:
-
-- `INDEX` is the action index starting from `0`
-- Omitting `:INDEX` is equivalent to `:*`
-- `*` matches all targets or all actions
-- `--debug` without a value is equivalent to `--debug '*'`
-- `--skipbuild --skipimage --debug` only prints the parsed Jsonnet config and skips build/image work
-
-Examples:
-
+- `*` matches all targets or actions
 - `kernel` means `kernel:*`
-- `*:0` means the `0`th action of every target
-- `kernel:1` pauses only before action `1` of `kernel`
+- `*:1` matches action `1` on all targets
+- `kernel:*` matches all `kernel` actions
+- `kernel:1` matches action `1` on `kernel`
 
-The debug shell runs in `build/<board>/<target>/`. The build resumes after the shell exits.
+`--debug` without a value is equivalent to `--debug '*'`. Use `--skipbuild --skipimage --debug` to print only the parsed Jsonnet config.
 
 ## Image Stage
 

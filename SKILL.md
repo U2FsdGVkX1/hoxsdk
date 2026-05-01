@@ -9,7 +9,7 @@
 
 - Do not modify the main program: `main.py`, `build_manager.py`, `image_manager.py`, `process.py`, `actions/*.py`.
 - Only touch core implementation if the user explicitly asks.
-- Prefer debugging through `build/`, `outputs/`, `logs/`, or `--debug` shells in build directories.
+- To debug Jsonnet config expansion, run `python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug` to print the parsed config without building or generating images.
 
 ## Read First
 

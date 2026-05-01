@@ -112,6 +112,8 @@ TARGET[:INDEX][,...]
 - `INDEX` 为动作下标，从 `0` 开始
 - 省略 `:INDEX` 时，等价于 `:*`
 - `*` 可匹配全部 target 或全部 action
+- `--debug` 不带值时，等价于 `--debug '*'`
+- `--skipbuild --skipimage --debug` 只输出解析后的 Jsonnet 配置，不执行构建或镜像阶段
 
 示例：
 

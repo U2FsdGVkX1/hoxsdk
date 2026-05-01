@@ -44,13 +44,14 @@ def parse_arguments() -> Args:
     parser.add_argument(
         "--debug",
         dest="debug_raw",
+        nargs="?",
+        const="*",
         type=str,
         default="",
         metavar="TARGET[:INDEX][,...]",
         help=(
-            "Debug breakpoints. '*' matches all targets/actions; 'kernel' means "
-            "kernel:*; '*:1' matches action 1 on all targets; 'kernel:*' matches "
-            "all kernel actions; 'kernel:1' matches action 1 on kernel"
+            "Print parsed jsonnet config and pause before matched actions; "
+            "default: *"
         ),
     )
 
@@ -76,6 +77,8 @@ async def main():
         ext_vars={"BDIR": str(boarddir)},
     )
     config = json.loads(content)
+    if args.debug:
+        print(json.dumps(config, indent=2, ensure_ascii=False))
 
     # build
     if not args.skipbuild:

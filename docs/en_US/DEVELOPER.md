@@ -112,6 +112,8 @@ Rules:
 - `INDEX` is the action index starting from `0`
 - Omitting `:INDEX` is equivalent to `:*`
 - `*` matches all targets or all actions
+- `--debug` without a value is equivalent to `--debug '*'`
+- `--skipbuild --skipimage --debug` only prints the parsed Jsonnet config and skips build/image work
 
 Examples:
 

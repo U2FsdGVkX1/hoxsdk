@@ -1,9 +1,9 @@
 case "$ARCH" in
     x86_64|amd64)
-        repo_url="https://download.fedoraproject.org/pub/fedora/linux/development/44/Everything/x86_64/os/"
+        repo_url="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"
         ;;
     aarch64|arm64)
-        repo_url="https://download.fedoraproject.org/pub/fedora/linux/development/44/Everything/aarch64/os/"
+        repo_url="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/aarch64/os/"
         ;;
     riscv64)
         repo_url="https://openkoji.iscas.ac.cn/kojifiles/repos/f44-build/latest/riscv64/"

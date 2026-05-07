@@ -69,15 +69,13 @@ class ImageManager:
             for script in sorted(scripts, key=lambda p: p.name):
                 cmds.append(f"source {quote(str(script))}")
         await shell(
-            f"bash -lc {quote('\n'.join(cmds))}",
+            f"sudo -E bash -lc {quote('\n'.join(cmds))}",
             cwd=rootfs,
             env=env
         )
 
     async def generate(self):
         workdir = (self.builddir / "_image").resolve()
-        if workdir.exists():
-            shutil.rmtree(workdir)
         rootfs = (workdir / "rootfs").resolve()
         rootfs.mkdir(parents=True, exist_ok=True)
 
@@ -85,13 +83,15 @@ class ImageManager:
         partitions = await self._load_partitions(workdir, rootfs)
         try:
             for image, mountpoint in partitions:
-                mountpoint.mkdir(parents=True, exist_ok=True)
+                assert mountpoint != "/", "Mountpoint cannot be root"
+                await shell(f"sudo -E rm -rf {quote(str(mountpoint))}")
+                await shell(f"sudo -E mkdir -p {quote(str(mountpoint))}")
                 await shell(
-                    f"mount -o loop {quote(str(image))} {quote(str(mountpoint))}"
+                    f"sudo -E mount -o loop {quote(str(image))} {quote(str(mountpoint))}"
                 )
             await self._source_scripts(rootfs, env)
         finally:
-            await shell(f"grep {quote(str(rootfs))} /proc/mounts | cut -d' ' -f2 | sort -r | xargs -r umount")
+            await shell(f"grep {quote(str(rootfs))} /proc/mounts | cut -d' ' -f2 | sort -r | xargs -r sudo -E umount")
         
         genimage_cfg = self.boarddir / "genimage.cfg"
         await shell(

@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
 
+from actions.base import BaseAction
 from process import shell
 
 
-async def run(action: dict, cwd: Path, env: dict[str, str]) -> None:
-    args = action.get("args", "")
-    await shell(f"make -j{os.cpu_count()} {args}", cwd=cwd, env=env)
+class Action(BaseAction):
+    args: str = ""
+
+    async def run(self, cwd: Path, env: dict[str, str]) -> None:
+        await shell(f"make -j{os.cpu_count()} {self.args}", cwd=cwd, env=env)

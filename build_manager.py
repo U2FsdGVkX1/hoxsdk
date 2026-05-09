@@ -2,18 +2,20 @@ import asyncio
 import importlib
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_validator,
+    model_validator,
+)
 
-@dataclass(frozen=True)
-class Target:
-    requires: list[str] = field(default_factory=list)
-    depends: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
-    actions: list[dict[str, Any]] = field(default_factory=list)
-    result: list[str] = field(default_factory=list)
+from actions.base import BaseAction
 
 
 @dataclass(frozen=True)
@@ -27,29 +29,105 @@ class DebugConfig:
         return matches_target and matches_action
 
 
+class Target(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    requires: tuple[str, ...] = Field(default_factory=tuple)
+    depends: tuple[str, ...] = Field(default_factory=tuple)
+    env: dict[str, str] = Field(default_factory=dict)
+    actions: tuple[BaseAction, ...] = Field(default_factory=tuple)
+    result: tuple[str, ...] = Field(default_factory=tuple)
+
+    @field_validator("actions", mode="before")
+    @classmethod
+    def validate_actions(cls, actions: Any) -> tuple[BaseAction, ...]:
+        if actions is None:
+            return tuple()
+
+        loaded_actions: list[BaseAction] = []
+        for action_config in actions:
+            if not isinstance(action_config, dict):
+                raise ValueError("Action config must be a dict")
+
+            use = action_config.get("use")
+            if not isinstance(use, str) or not use:
+                raise ValueError("Action config must include non-empty string 'use'")
+
+            module_name = f"actions.{use}"
+            try:
+                module = importlib.import_module(module_name)
+            except ModuleNotFoundError as exc:
+                if exc.name == module_name:
+                    raise ValueError(f"Unknown action '{use}'") from exc
+                raise
+
+            action_type = getattr(module, "Action", None)
+            if not action_type:
+                raise ValueError(f"Action '{use}' must export Action inheriting BaseAction")
+            if not issubclass(action_type, BaseAction):
+                raise ValueError(
+                    f"Action '{use}' must export Action inheriting BaseAction"
+                )
+            loaded_actions.append(action_type.model_validate(action_config))
+
+        return tuple(loaded_actions)
+
+
+class TargetGraph(RootModel[dict[str, Target]]):
+    model_config = ConfigDict(frozen=True)
+
+    @model_validator(mode="after")
+    def validate_dependencies(self) -> "TargetGraph":
+        for name, target in self.root.items():
+            for depend in target.depends:
+                if depend not in self.root:
+                    raise ValueError(
+                        f"Target '{name}' depends on unknown target '{depend}'"
+                    )
+
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        stack: list[str] = []
+
+        def visit(name: str) -> list[str] | None:
+            if name in visited:
+                return None
+            if name in visiting:
+                return stack[stack.index(name):] + [name]
+
+            visiting.add(name)
+            stack.append(name)
+            for depend in self.root[name].depends:
+                cycle = visit(depend)
+                if cycle:
+                    return cycle
+            stack.pop()
+            visiting.remove(name)
+            visited.add(name)
+            return None
+
+        for name in self.root:
+            cycle = visit(name)
+            if cycle:
+                raise ValueError(f"Dependency cycle detected: {' -> '.join(cycle)}")
+
+        return self
+
+
 class BuildManager:
     def __init__(
         self,
         targets: dict[str, dict[str, Any]],
         builddir: Path,
         outputdir: Path,
-        debug: list[DebugConfig] = [],
+        debug: list[DebugConfig] | None = None,
     ):
-        self.targets: dict[str, Target] = {
-            name: Target(
-                requires=target_config.get("requires", []),
-                depends=target_config.get("depends", []),
-                env=target_config.get("env", {}),
-                actions=target_config.get("actions", []),
-                result=target_config.get("result", []),
-            )
-            for name, target_config in targets.items()
-        }
+        self.targets = TargetGraph.model_validate(targets).root
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
-        self.debug = debug
+        self.debug = tuple(debug or [])
         self.running_tasks: dict[str, asyncio.Task[Path]] = {}
-    
+
     def _ensure_task(self, target_name: str) -> asyncio.Task[Path]:
         if target_name not in self.targets:
             raise ValueError(f"Unknown target '{target_name}'")
@@ -107,8 +185,8 @@ class BuildManager:
             shutil.rmtree(actiondir)
         actiondir.mkdir(parents=True, exist_ok=True)
         for action_index, action in enumerate(target.actions):
-            use: str = action["use"]
             env_extension = self._load_env_file(actiondir / ".env")
+            env = {**target.env, **env_extension}
             if any(
                 item.matches(target_name, action_index)
                 for item in self.debug
@@ -116,16 +194,11 @@ class BuildManager:
                 await self._open_debug_shell(
                     target_name,
                     action_index,
-                    use,
+                    action.use,
                     actiondir,
-                    {**target.env, **env_extension},
+                    env,
                 )
-
-            module = importlib.import_module(f"actions.{use}")
-            runner = getattr(module, "run", None)
-            if runner is None:
-                raise ValueError(f"Action '{use}' must export run()")
-            await runner(action, actiondir, {**target.env, **env_extension})
+            await action.run(actiondir, env)
 
         for result in target.result:
             for matched_file in actiondir.glob(result):

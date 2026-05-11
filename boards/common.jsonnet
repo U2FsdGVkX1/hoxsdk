@@ -52,28 +52,53 @@ local envs = {
 };
 
 function(arch) {
-  local KiB = 1024,
+  local Sector = 512,
+  local KiB = 1024 / Sector,
   local MiB = 1024 * KiB,
   local GiB = 1024 * MiB,
 
   partitions: [
     {
-      name: 'rootfs',
-      mountpoint: '/',
+      name: 'rootfs.img',
       size: 15 * GiB,
       mkfs: 'mkfs.ext4',
+      mountpoint: '/',
     },
     {
-      name: 'boot',
-      mountpoint: '/boot',
+      name: 'boot.img',
       size: 1 * GiB,
       mkfs: 'mkfs.ext4',
+      mountpoint: '/boot',
     },
     {
-      name: 'efi',
-      mountpoint: '/boot/efi',
+      name: 'efi.img',
       size: 500 * MiB,
       mkfs: 'mkfs.fat -F 32',
+      mountpoint: '/boot/efi',
+    },
+  ],
+
+  images: [
+    {
+      name: 'sdcard.img',
+      table: 'gpt',
+      partitions: [
+        {
+          name: 'efi.img',
+          start: 1 * MiB,
+          type: 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B',
+        },
+        {
+          name: 'boot.img',
+          start: 1 * MiB + 500 * MiB,
+          type: 'BC13C2FF-59E6-4262-A352-B275FD6F7172',
+        },
+        {
+          name: 'rootfs.img',
+          start: 1 * MiB + 500 * MiB + 1 * GiB,
+          type: '0FC63DAF-8483-4772-8E79-3D69D8477DE4',
+        },
+      ],
     },
   ],
 

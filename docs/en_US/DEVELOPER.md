@@ -9,7 +9,7 @@
 | `image_manager.py` | Image-stage scheduler |
 | `process.py` | Unified shell execution and log writing |
 | `actions/` | Build-stage actions |
-| `boards/` | Board configuration directory, usually containing `config.jsonnet`, `genimage.cfg`, `pre/`, `post/`, and resource files |
+| `boards/` | Board configuration directory, usually containing `config.jsonnet`, `pre/`, `post/`, and resource files |
 | `adapters/` | Distribution adapter directory, usually containing `pre/` and `post/` scripts |
 
 ## Configuration
@@ -22,6 +22,7 @@ Minimum structure:
 {
   arch: 'riscv64',
   partitions: [],
+  images: [],
   targets: {},
 }
 ```
@@ -31,17 +32,35 @@ Top-level fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `arch` | `string` | Target architecture, for example `aarch64` or `riscv64` |
-| `partitions` | `array<object>` | List of partitions created and mounted during the image stage |
+| `partitions` | `array<object>` | Partition images to create, format, and mount |
+| `images` | `array<object>` | Final disk image definitions |
 | `targets` | `object` | Build targets keyed by target name |
 
-Common `partitions` fields:
+Top-level `partitions` entry fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `name` | `string` | Partition image name without the `.img` suffix |
-| `mountpoint` | `string` | Mount point, for example `/` or `/boot` |
-| `size` | `number` | Partition size in bytes |
-| `mkfs` | `string` | Filesystem creation command, for example `mkfs.ext4` |
+| `name` | `string` | Partition image file name, for example `rootfs.img` |
+| `size` | `number` | Partition size in sectors |
+| `mkfs` | `string` | Filesystem creation command |
+| `mountpoint` | `string` | Mount point; the image is created and mounted before rootfs installation |
+
+`images` entry fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Final disk image file name, for example `sdcard.img` |
+| `table` | `string` | Partition table type, for example `gpt` or `dos` |
+| `partitions` | `array<object>` | Partition reference list in final disk order |
+
+`images[].partitions` entry fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Partition image file name in the image work directory |
+| `start` | `number` | Partition start offset in sectors |
+| `size` | `number` | Partition image size in sectors; auto-detected from file size when omitted |
+| `type` | `string` | Partition type passed to `sfdisk`, for example a GPT type UUID |
 
 ### Target
 
@@ -87,7 +106,7 @@ Rules:
 
 Helpers:
 
-- `boards/common.jsonnet` provides `partitions`, `target`, and template helpers such as `opensbi`, `uboot`, and `kernel`
+- `boards/common.jsonnet` provides `partitions`, `images`, `target`, and template helpers such as `opensbi`, `uboot`, and `kernel`
 - In those template helpers, `prebuild` is inserted before the default build actions, and `postbuild` is appended after them
 
 ## Action
@@ -120,17 +139,18 @@ TARGET[:INDEX][,...]
 Flow:
 
 1. Create `build/<board>/_image/` and `rootfs/`
-2. Create and mount partition images based on `partitions`
+2. Create and mount partition images from top-level `partitions` entries with `mountpoint`
 3. Run `pre` and `post` scripts
 4. Unmount partitions
-5. Call `genimage` to generate the final image
+5. Write final disk images from `images` using `sfdisk`
 
 Rules:
 
 - `*.sh` files are collected from both `adapters/<adapter>/<stage>/` and `boards/<board>/<stage>/`
 - Scripts in the same stage run in filename order
-- Scripts are loaded with `source` into the same `bash -lc` session
 - The script working directory is `ROOTFS`
+- `images[].name` is used as the final disk image output name
+- Do not define external images in top-level `partitions`; reference their file name directly from `images[].partitions[]`; `size` may be provided explicitly or omitted to auto-detect from file size
 
 Script environment variables:
 

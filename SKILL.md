@@ -3,7 +3,7 @@
 ## Scope
 
 - Write or adjust Hox SDK config files.
-- Focus on `boards/<board>/`, `adapters/<adapter>/`, `genimage.cfg`, board assets, and scripts.
+- Focus on `boards/<board>/`, `adapters/<adapter>/`, board assets, and scripts.
 
 ## Boundaries
 
@@ -23,9 +23,9 @@
 ## Mental Model
 
 - Entry command: `python main.py -b <board> -a <adapter>`
-- `config.jsonnet` must at least return `{ arch, partitions, targets }`
+- `config.jsonnet` must at least return `{ arch, images, targets }`
 - Build stage: `targets` form a dependency graph; actions inside one target run in order; the working directory is `build/<board>/<target>/`; `result` files go to `outputs/<board>/`.
-- Image stage: create partitions from `partitions`, then run adapter and board `pre`/`post` scripts in filename order; scripts are `source`d in one shell session and run in `ROOTFS`.
+- Image stage: create mountable partition images from `images`, then run adapter and board `pre`/`post` scripts in filename order; scripts are `source`d in one shell session and run in `ROOTFS`; final disk images are written from `images`.
 
 ## Development Rules
 

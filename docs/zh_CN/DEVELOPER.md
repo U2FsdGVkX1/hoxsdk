@@ -9,7 +9,7 @@
 | `image_manager.py` | 镜像阶段调度 |
 | `process.py` | 统一 shell 执行与日志写入 |
 | `actions/` | 构建阶段 action |
-| `boards/` | 板级配置目录，通常包含 `config.jsonnet`、`genimage.cfg`、`pre/`、`post/` 和资源文件 |
+| `boards/` | 板级配置目录，通常包含 `config.jsonnet`、`pre/`、`post/` 和资源文件 |
 | `adapters/` | 发行版适配目录，通常包含 `pre/`、`post/` 脚本 |
 
 ## 配置
@@ -22,6 +22,7 @@
 {
   arch: 'riscv64',
   partitions: [],
+  images: [],
   targets: {},
 }
 ```
@@ -31,17 +32,35 @@
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `arch` | `string` | 目标架构，例如 `aarch64`、`riscv64` |
-| `partitions` | `array<object>` | 镜像阶段创建并挂载的分区列表 |
+| `partitions` | `array<object>` | 需要创建、格式化并挂载的分区镜像定义列表 |
+| `images` | `array<object>` | 最终磁盘镜像配置列表 |
 | `targets` | `object` | 构建目标集合，键为 target 名称 |
 
-`partitions` 常用字段：
+顶层 `partitions` 条目字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `name` | `string` | 分区镜像名，不含 `.img` 后缀 |
-| `mountpoint` | `string` | 挂载点，例如 `/`、`/boot` |
-| `size` | `number` | 分区大小，单位为字节 |
-| `mkfs` | `string` | 文件系统创建命令，例如 `mkfs.ext4` |
+| `name` | `string` | 分区镜像文件名，例如 `rootfs.img` |
+| `size` | `number` | 分区大小，单位为扇区 |
+| `mkfs` | `string` | 文件系统创建命令 |
+| `mountpoint` | `string` | 挂载点；会先创建并挂载该镜像，再安装 rootfs |
+
+`images` 条目字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `name` | `string` | 最终磁盘镜像文件名，例如 `sdcard.img` |
+| `table` | `string` | 分区表类型，例如 `gpt` 或 `dos` |
+| `partitions` | `array<object>` | 按最终磁盘分区顺序排列的分区引用列表 |
+
+`images[].partitions` 条目字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `name` | `string` | 镜像工作目录中的分区镜像文件名 |
+| `start` | `number` | 分区起始位置，单位为扇区 |
+| `size` | `number` | 分区镜像大小，单位为扇区；省略时按文件大小自动探测 |
+| `type` | `string` | 传给 `sfdisk` 的分区类型，例如 GPT type UUID |
 
 ### Target
 
@@ -87,7 +106,7 @@
 
 辅助项：
 
-- `boards/common.jsonnet` 提供 `partitions`、`target` 以及 `opensbi`、`uboot`、`kernel` 模板函数
+- `boards/common.jsonnet` 提供 `partitions`、`images`、`target` 以及 `opensbi`、`uboot`、`kernel` 模板函数
 - 模板函数中 `prebuild` 插入到默认构建动作之前，`postbuild` 追加到默认构建动作之后
 
 ## Action
@@ -120,10 +139,10 @@ TARGET[:INDEX][,...]
 流程：
 
 1. 创建 `build/<board>/_image/` 和 `rootfs/`
-2. 按 `partitions` 创建并挂载分区镜像
+2. 按顶层 `partitions` 中带 `mountpoint` 的条目创建并挂载分区镜像
 3. 执行 `pre`、`post` 脚本
 4. 卸载分区
-5. 调用 `genimage` 生成最终镜像
+5. 按 `images` 使用 `sfdisk` 写出最终磁盘镜像
 
 规则：
 
@@ -131,6 +150,8 @@ TARGET[:INDEX][,...]
 - 同一阶段按文件名排序执行
 - 脚本通过 `source` 载入到同一个 `bash -lc` 会话中
 - 脚本工作目录为 `ROOTFS`
+- `images[].name` 作为最终磁盘镜像输出名
+- 外部镜像不要定义在顶层 `partitions` 中；在 `images[].partitions[]` 中直接引用其文件名；`size` 可显式提供，也可省略后按文件大小自动探测
 
 脚本环境变量：
 

@@ -97,6 +97,7 @@ async def main():
             config["arch"],
             args.desktop,
             config.get("partitions", []),
+            config.get("images", []),
             boarddir,
             adapterdir,
             builddir,

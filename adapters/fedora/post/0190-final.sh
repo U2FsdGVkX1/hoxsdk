@@ -1,4 +1,5 @@
 chroot_rootfs "echo 'root:hoxsdk' | chpasswd"
+chroot_rootfs systemctl enable systemd-timesyncd
 chroot_rootfs dnf clean all
 
 while read -r mountpoint fstype; do

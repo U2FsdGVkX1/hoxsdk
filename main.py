@@ -35,7 +35,7 @@ def parse_debug(value: str) -> list[DebugConfig]:
 
 
 def parse_arguments() -> Args:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
     parser.add_argument("-b", "--board", type=str, required=True, help="Board name")
     parser.add_argument("-a", "--adapter", type=str, required=True, help="Image adapter name")
     parser.add_argument("--desktop", type=str, default="minimal", help="Desktop profile name")

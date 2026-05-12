@@ -1,34 +1,114 @@
 # Hox SDK 使用文档
 
-## 常用命令
+## 概览
 
-| 用途 | 命令 |
+Hox SDK 根据板级配置和 adapter 脚本构建板级产物并打包磁盘镜像。
+
+一次运行需要选择：
+
+- `boards/<board>/config.jsonnet` 中的一个板级配置。
+- `adapters/<adapter>/` 中的一个镜像 adapter。
+
+构建阶段会把产物写入 `outputs/<board>/`。镜像阶段会使用这些产物，并把最终磁盘镜像写入同一个输出目录。
+
+## 当前可用的 Boards 和 Adapters
+
+当前仓库包含的 boards：
+
+| Board 参数 | 配置 |
 | --- | --- |
-| 默认构建并打包镜像 | `python main.py -b QEMU/Generic -a alpine` |
-| 仅执行构建阶段 | `python main.py -b QEMU/Generic -a alpine --skipimage` |
-| 复用已有产物重新打包镜像 | `python main.py -b QEMU/Generic -a alpine --skipbuild` |
+| `QEMU/Generic` | `boards/QEMU/Generic/config.jsonnet` |
+| `AMLogic-S905D5/VSAI-BQ201` | `boards/AMLogic-S905D5/VSAI-BQ201/config.jsonnet` |
 
-- `board` 的取值为 `boards/` 下的相对路径，例如 `QEMU/Generic`
-- `adapter` 的取值为 `adapters/` 下的目录名，例如 `fedora`
+当前仓库包含的 adapters：
+
+| Adapter 参数 | 路径 |
+| --- | --- |
+| `alpine` | `adapters/alpine/` |
+| `fedora` | `adapters/fedora/` |
+
+## 需求
+
+根目录 Python 依赖：
+
+- Python 3.10+
+- `_jsonnet`
+- `pydantic`
+
+镜像生成常用宿主机工具：
+
+- `sfdisk`
+- `dd`
+- `sudo`
+- `bash`
+- `mount`
+- `umount`
+
+板级 target 可能需要额外工具，例如 `git`、`patch`、`make` 或交叉编译器。请检查所选板级配置中的 `requires`。
+
+依赖安装命令为 Unknown，因为本仓库没有提供根目录包元数据。
+
+## 命令
+
+查看 CLI 帮助：
+
+```sh
+python main.py --help
+```
+
+构建并打包镜像：
+
+```sh
+python main.py -b QEMU/Generic -a alpine
+```
+
+只运行构建阶段：
+
+```sh
+python main.py -b QEMU/Generic -a alpine --skipimage
+```
+
+基于已有输出只运行镜像阶段：
+
+```sh
+python main.py -b QEMU/Generic -a alpine --skipbuild
+```
+
+输出 Jsonnet 求值后的最终 JSON 配置，不构建、不打包：
+
+```sh
+python main.py -b QEMU/Generic -a alpine --skipbuild --skipimage --debug
+```
+
+使用参数文件：
+
+```sh
+python main.py @args.txt
+```
 
 ## 参数
 
-| 参数 | 必选 | 说明 |
-| --- | --- | --- |
-| `-b`, `--board` | 是 | 板级配置，相对于 `boards/` 的路径 |
-| `-a`, `--adapter` | 是 | 镜像适配器，对应 `adapters/<adapter>/` |
-| `--desktop` | 否 | 传递给镜像脚本的桌面配置名，默认 `minimal` |
-| `--skipbuild` | 否 | 跳过构建阶段，只执行镜像阶段 |
-| `--skipimage` | 否 | 跳过镜像阶段，只执行构建阶段 |
-| `--debug` | 否 | 在指定 `target/action` 前进入调试 Shell，格式见 [DEVELOPER.md](./DEVELOPER.md#调试) |
+| 参数 | 必需 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `-b`, `--board` | 是 | 无 | 相对于 `boards/` 的 board 路径 |
+| `-a`, `--adapter` | 是 | 无 | `adapters/` 下的 adapter 目录名 |
+| `--desktop` | 否 | `minimal` | 传给镜像脚本的桌面配置名 |
+| `--skipbuild` | 否 | `false` | 跳过构建阶段 |
+| `--skipimage` | 否 | `false` | 跳过镜像阶段 |
+| `--debug [TARGET[:INDEX][,...]]` | 否 | 空；不带值使用时为 `*` | 输出配置，并在匹配的 action 前打开 shell |
 
 ## 输出
 
 | 路径 | 说明 |
 | --- | --- |
-| `build/<board>/<target>/` | target 工作目录 |
-| `build/<board>/_image/` | 镜像阶段的临时工作目录 |
-| `outputs/<board>/` | 构建产物和镜像输出目录 |
-| `logs/<board>/` | 命令日志目录，例如 `kernel.log`、`_image.log` |
+| `build/<board>/<target>/` | 单个 target 的构建工作目录 |
+| `build/<board>/_image/` | 镜像阶段工作目录 |
+| `outputs/<board>/` | 构建产物和生成的镜像 |
+| `logs/<board>/` | 命令日志 |
 
-构建阶段 `result` 匹配到的文件会被移动到 `outputs/<board>/` 根目录，构建日志位于 `logs/<board>/`
+## 说明
+
+- Board 名称是相对于 `boards/` 的路径。
+- Adapter 名称是 `adapters/` 下的目录名。
+- 使用 `boards/common.jsonnet` 默认值时，共享的默认最终镜像名是 `sdcard.img`。
+- 需要验证：Fedora adapter 的 post 脚本会调用 `chroot_rootfs`，但未找到 Fedora 本地定义。

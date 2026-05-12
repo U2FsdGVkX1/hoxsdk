@@ -1,22 +1,54 @@
 # Hox SDK 开发者文档
 
-## 核心文件
+## 目的
 
-| 路径 | 说明 |
+本文说明如何添加或维护 SDK 的板级配置、构建目标、action 和镜像脚本。
+
+## 仓库结构
+
+| 路径 | 用途 |
 | --- | --- |
-| `main.py` | 命令行入口 |
-| `build_manager.py` | 构建阶段调度 |
-| `image_manager.py` | 镜像阶段调度 |
-| `process.py` | 统一 shell 执行与日志写入 |
-| `actions/` | 构建阶段 action |
-| `boards/` | 板级配置目录，通常包含 `config.jsonnet`、`pre/`、`post/` 和资源文件 |
-| `adapters/` | 发行版适配目录，通常包含 `pre/`、`post/` 脚本 |
+| `main.py` | SDK 命令入口 |
+| `boards/` | 板级定义和板级资源 |
+| `boards/common.jsonnet` | 通用分区、镜像和构建目标的 Jsonnet 辅助项 |
+| `adapters/` | 发行版 rootfs 和镜像定制脚本 |
+| `actions/` | 可复用构建 action |
+| `docs/zh_CN/actions/` | action 字段参考文档 |
+| `build/` | 生成的工作目录 |
+| `outputs/` | 生成的构建产物和磁盘镜像 |
+| `logs/` | 命令日志 |
 
-## 配置
+SDK 开发者主要会接触这些格式：
 
-`boards/<board>/config.jsonnet` 需要产出一个 JSON 对象
+- Jsonnet：板级配置
+- Shell 脚本：镜像定制
+- Python：SDK 框架 action 和命令编排
 
-最小结构：
+## 添加或更新板级配置
+
+板级配置位于 `boards/<board>/`，其中 `<board>` 是传给 `python main.py -b` 的值。
+
+必需文件：
+
+| 路径 | 用途 |
+| --- | --- |
+| `boards/<board>/config.jsonnet` | 板级架构、构建目标、分区布局和最终镜像布局 |
+
+可选板级目录：
+
+| 路径 | 用途 |
+| --- | --- |
+| `boards/<board>/pre/` | 镜像 pre 阶段运行的板级脚本 |
+| `boards/<board>/post/` | 镜像 post 阶段运行的板级脚本 |
+| 其他板级本地路径 | 配置或脚本引用的补丁、overlay、固件或其他板级资源 |
+
+`main.py` 会把 `BDIR` 作为当前板级目录的绝对路径传给 Jsonnet。配置需要引用板级本地文件时可以使用它：
+
+```jsonnet
+local BDIR = std.extVar('BDIR');
+```
+
+最小板级配置：
 
 ```jsonnet
 {
@@ -27,52 +59,57 @@
 }
 ```
 
+## 板级配置字段
+
 顶层字段：
 
-| 字段 | 类型 | 说明 |
+| 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `arch` | `string` | 目标架构，例如 `aarch64`、`riscv64` |
-| `partitions` | `array<object>` | 需要创建、格式化并挂载的分区镜像定义列表 |
-| `images` | `array<object>` | 最终磁盘镜像配置列表 |
-| `targets` | `object` | 构建目标集合，键为 target 名称 |
+| `arch` | 生成镜像时必需 | 目标架构，会作为 `ARCH` 传给镜像脚本 |
+| `partitions` | 否 | 脚本运行前需要创建、格式化并挂载的分区镜像 |
+| `images` | 否 | 需要写出的最终磁盘镜像 |
+| `targets` | 否 | 构建目标集合，键为 target 名称 |
 
-顶层 `partitions` 条目字段：
+`partitions` 字段中的条目：
 
-| 字段 | 类型 | 说明 |
+| 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `name` | `string` | 分区镜像文件名，例如 `rootfs.img` |
-| `size` | `number` | 分区大小，单位为扇区 |
-| `mkfs` | `string` | 文件系统创建命令 |
-| `mountpoint` | `string` | 挂载点；会先创建并挂载该镜像，再安装 rootfs |
+| `name` | 是 | 分区镜像文件名 |
+| `size` | 是 | 分区大小，单位为 512 字节扇区 |
+| `mkfs` | 是 | 文件系统命令，例如 `mkfs.ext4` |
+| `mountpoint` | 是 | 临时 rootfs 内的挂载点 |
 
-`images` 条目字段：
+`images` 字段中的条目：
 
-| 字段 | 类型 | 说明 |
+| 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `name` | `string` | 最终磁盘镜像文件名，例如 `sdcard.img` |
-| `table` | `string` | 分区表类型，例如 `gpt` 或 `dos` |
-| `partitions` | `array<object>` | 按最终磁盘分区顺序排列的分区引用列表 |
+| `name` | 是 | `outputs/<board>/` 下的最终镜像文件名 |
+| `table` | 否 | 分区表类型：`gpt` 或 `dos`；默认是 `gpt` |
+| `partitions` | 是 | 最终镜像中的分区引用列表，顺序即分区顺序 |
 
-`images[].partitions` 条目字段：
+`images[].partitions` 字段中的条目：
 
-| 字段 | 类型 | 说明 |
+| 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `name` | `string` | 镜像工作目录中的分区镜像文件名 |
-| `start` | `number` | 分区起始位置，单位为扇区 |
-| `size` | `number` | 分区镜像大小，单位为扇区；省略时按文件大小自动探测 |
-| `type` | `string` | 传给 `sfdisk` 的分区类型，例如 GPT type UUID |
+| `name` | 是 | 分区镜像文件名 |
+| `start` | 是 | 起始偏移，单位为 512 字节扇区 |
+| `size` | 否 | 分区大小，单位为扇区；省略时根据分区镜像文件大小推断 |
+| `type` | 否 | 传给 `sfdisk` 的分区类型 |
+| `bootable` | 否 | 在分区表支持时标记为可启动分区 |
 
-### Target
+## `targets` 字段
 
-| 字段 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `requires` | `array<string>` | `[]` | 执行前检查的宿主机命令 |
-| `depends` | `array<string>` | `[]` | 依赖的其他 target 名称 |
-| `env` | `object` | `{}` | 传递给 action 的环境变量 |
-| `actions` | `array<object>` | `[]` | 按顺序执行的动作列表 |
-| `result` | `array<string>` | `[]` | 构建完成后从工作目录中收集并移动到 `outputs/<board>/` 的 glob |
+每个 target 描述一个构建单元。
 
-示例：
+| 字段 | 默认值 | 用途 |
+| --- | --- | --- |
+| `requires` | `[]` | target 运行前必须存在的宿主机命令 |
+| `depends` | `[]` | 必须先完成的其他 target |
+| `env` | `{}` | 传给 action 的环境变量 |
+| `actions` | `[]` | 按顺序执行的构建 action 列表 |
+| `result` | `[]` | 从 target 工作目录移动到 `outputs/<board>/` 的 glob 匹配规则 |
+
+target 示例：
 
 ```jsonnet
 {
@@ -84,7 +121,6 @@
         CROSS_COMPILE: 'aarch64-linux-gnu-',
       },
       actions: [
-        { use: 'git', src: 'https://github.com/torvalds/linux' },
         { use: 'make', args: 'defconfig' },
         { use: 'make' },
       ],
@@ -94,76 +130,108 @@
 }
 ```
 
-规则：
+target 规则：
 
-- 默认情况下，target 按依赖关系并发调度
-- 开启 `--debug` 后，target 会逐个等待，便于交互调试
-- 同一 target 内的 `actions` 严格按顺序执行
-- 每个 target 的工作目录为 `build/<board>/<target>/`，每次构建前都会被重新创建
-- 每次 action 执行前都会读取 `.env`，并覆盖同名的 `target.env` 变量
-- `result` 匹配到的文件或目录会移动到 `outputs/<board>/` 根目录
-- `BDIR` 是当前板级目录的绝对路径
+- target 在 `build/<board>/<target>/` 中运行。
+- 每次运行 target 前都会重新创建对应工作目录。
+- target 依赖通过 `depends` 声明。
+- 同一 target 内的 action 按顺序运行。
+- `result` 匹配到的文件会移动到 `outputs/<board>/`。
+- action 写入的 `.env` 文件可以把变量传给同一 target 后续 action。
 
-辅助项：
+## 通用辅助项
 
-- `boards/common.jsonnet` 提供 `partitions`、`images`、`target` 以及 `opensbi`、`uboot`、`kernel` 模板函数
-- 模板函数中 `prebuild` 插入到默认构建动作之前，`postbuild` 追加到默认构建动作之后
+如果适合当前板级配置，优先使用 `boards/common.jsonnet`。
 
-## Action
+可用辅助项：
 
-每个 action 都必须包含 `use` 字段，`BuildManager` 会加载 `actions/<use>.py` 并调用 `run()`
+| 辅助项 | 用途 |
+| --- | --- |
+| `partitions` | 通用 `rootfs.img`、`boot.img` 和 `efi.img` 分区定义 |
+| `images` | 通用 `sdcard.img` 镜像定义 |
+| `target(...)` | 使用共享架构环境变量创建 target |
+| `opensbi(...)` | 通用 OpenSBI 构建 target 模板 |
+| `uboot(...)` | 通用 U-Boot 构建 target 模板 |
+| `kernel(...)` | 通用 Linux kernel 构建 target 模板 |
 
-- action 运行目录始终是当前 target 的工作目录
-- action 的有效环境变量为 `os.environ + target.env + .env`
-- 如果 action 写入 `.env`，新值会从下一个 action 开始生效
-- 详情见 [actions/](./actions/README.md)
+模板辅助项支持通过 `prebuild` 和 `postbuild` action 列表加入板级定制步骤。
 
-## 调试
+## Actions
 
-`--debug` 接受以下格式的断点匹配：
+action 通过 `use` 字段选择。
 
-```text
-TARGET[:INDEX][,...]
-```
+action 实现位于 `actions/`。action 字段文档位于 `docs/zh_CN/actions/`。
 
-- `*` 匹配全部 target 或 action
-- `kernel` 表示 `kernel:*`
-- `*:1` 匹配所有 target 的第 `1` 个 action
-- `kernel:*` 匹配 `kernel` 的所有 action
-- `kernel:1` 匹配 `kernel` 的第 `1` 个 action
+添加 target 时，优先使用已有 action。只有确实需要时才新增 action；新增时需要添加 `actions/<name>.py`，并在 `docs/zh_CN/actions/<name>.md` 中记录字段说明。
 
-`--debug` 不带值时等价于 `--debug '*'`。使用 `--skipbuild --skipimage --debug` 可以只输出解析后的 Jsonnet 配置。
+## 镜像脚本
 
-## 镜像阶段
+镜像脚本用于定制临时 rootfs 和最终镜像输入。
 
-流程：
+脚本位置：
 
-1. 创建 `build/<board>/_image/` 和 `rootfs/`
-2. 按顶层 `partitions` 中带 `mountpoint` 的条目创建并挂载分区镜像
-3. 执行 `pre`、`post` 脚本
-4. 卸载分区
-5. 按 `images` 使用 `sfdisk` 写出最终磁盘镜像
+| 路径 | 用途 |
+| --- | --- |
+| `adapters/<adapter>/pre/*.sh` | adapter pre 阶段脚本 |
+| `boards/<board>/pre/*.sh` | board pre 阶段脚本 |
+| `adapters/<adapter>/post/*.sh` | adapter post 阶段脚本 |
+| `boards/<board>/post/*.sh` | board post 阶段脚本 |
 
-规则：
+脚本规则：
 
-- 同时收集 `adapters/<adapter>/<stage>/` 和 `boards/<board>/<stage>/` 下的 `*.sh`
-- 同一阶段按文件名排序执行
-- 脚本通过 `source` 载入到同一个 `bash -lc` 会话中
-- 脚本工作目录为 `ROOTFS`
-- `images[].name` 作为最终磁盘镜像输出名
-- 外部镜像不要定义在顶层 `partitions` 中；在 `images[].partitions[]` 中直接引用其文件名；`size` 可显式提供，也可省略后按文件大小自动探测
+- `pre` 先于 `post` 运行。
+- adapter 脚本和 board 脚本都会被包含。
+- 同一阶段内脚本按文件名顺序运行。
+- 脚本在同一个 shell 会话中运行，因此前面脚本定义的函数可被后续脚本使用。
+- 脚本工作目录是 `ROOTFS`。
 
 脚本环境变量：
 
-| 变量 | 说明 |
+| 变量 | 用途 |
 | --- | --- |
-| `ROOTFS` | 临时根文件系统目录 |
-| `BOARD_NAME` | 当前板级目录名 |
-| `BOARD_DIR` | 当前板级目录绝对路径 |
+| `ROOTFS` | 临时 rootfs 目录 |
+| `BOARD_NAME` | 当前 board 目录名 |
+| `BOARD_DIR` | 当前 board 目录绝对路径 |
 | `ADAPTER_NAME` | 当前 adapter 名称 |
 | `ADAPTER_DIR` | 当前 adapter 目录绝对路径 |
-| `BUILD_DIR` | 当前 board 的构建目录绝对路径 |
-| `OUTPUT_DIR` | 当前 board 的输出目录绝对路径 |
-| `FIRMWARE_DIR` | 当前实现中等同于 `OUTPUT_DIR` |
-| `ARCH` | 目标架构 |
-| `DESKTOP` | 命令行传入的桌面配置名 |
+| `BUILD_DIR` | `build/<board>/` 的绝对路径 |
+| `OUTPUT_DIR` | `outputs/<board>/` 的绝对路径 |
+| `FIRMWARE_DIR` | 与 `OUTPUT_DIR` 相同 |
+| `ARCH` | `config.jsonnet` 中的 board 架构 |
+| `DESKTOP` | 通过 `--desktop` 传入的值 |
+
+## 调试
+
+输出 Jsonnet 求值后的最终 JSON 配置，不运行构建阶段和镜像阶段：
+
+```sh
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
+```
+
+在匹配的 action 前打开调试 shell：
+
+```sh
+python main.py -b <board> -a <adapter> --debug <target[:index]>
+```
+
+匹配模式：
+
+| 模式 | 含义 |
+| --- | --- |
+| `*` | 全部 target 和 action |
+| `kernel` | `kernel` 中的全部 action |
+| `kernel:0` | `kernel` 中的第一个 action |
+| `*:1` | 每个 target 中的第二个 action |
+
+action 索引从 0 开始。
+
+## 验证
+
+修改 SDK 配置后可使用这些检查：
+
+```sh
+python main.py --help
+
+# 检查 `boards/<board>/config.jsonnet` 生成的最终 JSON 配置。
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
+```

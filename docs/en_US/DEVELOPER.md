@@ -1,22 +1,54 @@
 # Hox SDK Developer Guide
 
-## Core Files
+## Purpose
 
-| Path | Description |
+This guide explains how to add or maintain SDK board configs, build targets, actions, and image scripts.
+
+## Repository Layout
+
+| Path | Purpose |
 | --- | --- |
-| `main.py` | CLI entry point |
-| `build_manager.py` | Build-stage scheduler |
-| `image_manager.py` | Image-stage scheduler |
-| `process.py` | Unified shell execution and log writing |
-| `actions/` | Build-stage actions |
-| `boards/` | Board configuration directory, usually containing `config.jsonnet`, `pre/`, `post/`, and resource files |
-| `adapters/` | Distribution adapter directory, usually containing `pre/` and `post/` scripts |
+| `main.py` | SDK command entry point |
+| `boards/` | Board definitions and board-specific assets |
+| `boards/common.jsonnet` | Shared Jsonnet helpers for common partitions, images, and build targets |
+| `adapters/` | Root filesystem and image customization scripts for distributions |
+| `actions/` | Reusable build actions |
+| `docs/en_US/actions/` | Reference docs for action fields |
+| `build/` | Generated working directories |
+| `outputs/` | Generated artifacts and disk images |
+| `logs/` | Command logs |
 
-## Configuration
+Primary formats used by SDK authors:
 
-`boards/<board>/config.jsonnet` must evaluate to a JSON object.
+- Jsonnet for board configuration
+- Shell scripts for image customization
+- Python for SDK framework actions and command orchestration
 
-Minimum structure:
+## Add Or Update A Board
+
+A board lives under `boards/<board>/`, where `<board>` is the value passed to `python main.py -b`.
+
+Required file:
+
+| Path | Purpose |
+| --- | --- |
+| `boards/<board>/config.jsonnet` | Board architecture, build targets, partition layout, and final image layout |
+
+Optional board directories:
+
+| Path | Purpose |
+| --- | --- |
+| `boards/<board>/pre/` | Board scripts run during the image pre stage |
+| `boards/<board>/post/` | Board scripts run during the image post stage |
+| Other board-local paths | Patches, overlays, firmware, or other board assets referenced by config or scripts |
+
+`main.py` passes `BDIR` to Jsonnet as the absolute board directory path. Use it when a config needs to reference board-local files:
+
+```jsonnet
+local BDIR = std.extVar('BDIR');
+```
+
+Minimal board config:
 
 ```jsonnet
 {
@@ -27,52 +59,57 @@ Minimum structure:
 }
 ```
 
+## Board Config Fields
+
 Top-level fields:
 
-| Field | Type | Description |
+| Field | Required | Purpose |
 | --- | --- | --- |
-| `arch` | `string` | Target architecture, for example `aarch64` or `riscv64` |
-| `partitions` | `array<object>` | Partition images to create, format, and mount |
-| `images` | `array<object>` | Final disk image definitions |
-| `targets` | `object` | Build targets keyed by target name |
+| `arch` | Yes for image generation | Target architecture passed to image scripts as `ARCH` |
+| `partitions` | No | Partition images to create, format, and mount before scripts run |
+| `images` | No | Final disk images to write |
+| `targets` | No | Build targets keyed by target name |
 
-Top-level `partitions` entry fields:
+Partition fields:
 
-| Field | Type | Description |
+| Field | Required | Purpose |
 | --- | --- | --- |
-| `name` | `string` | Partition image file name, for example `rootfs.img` |
-| `size` | `number` | Partition size in sectors |
-| `mkfs` | `string` | Filesystem creation command |
-| `mountpoint` | `string` | Mount point; the image is created and mounted before rootfs installation |
+| `name` | Yes | Partition image file name |
+| `size` | Yes | Partition size in 512-byte sectors |
+| `mkfs` | Yes | Filesystem command, for example `mkfs.ext4` |
+| `mountpoint` | Yes | Mount point inside the temporary rootfs |
 
-`images` entry fields:
+Image fields:
 
-| Field | Type | Description |
+| Field | Required | Purpose |
 | --- | --- | --- |
-| `name` | `string` | Final disk image file name, for example `sdcard.img` |
-| `table` | `string` | Partition table type, for example `gpt` or `dos` |
-| `partitions` | `array<object>` | Partition reference list in final disk order |
+| `name` | Yes | Final image file name under `outputs/<board>/` |
+| `table` | No | Partition table type: `gpt` or `dos`; default is `gpt` |
+| `partitions` | Yes | Partition references in final image order |
 
-`images[].partitions` entry fields:
+Image partition fields:
 
-| Field | Type | Description |
+| Field | Required | Purpose |
 | --- | --- | --- |
-| `name` | `string` | Partition image file name in the image work directory |
-| `start` | `number` | Partition start offset in sectors |
-| `size` | `number` | Partition image size in sectors; auto-detected from file size when omitted |
-| `type` | `string` | Partition type passed to `sfdisk`, for example a GPT type UUID |
+| `name` | Yes | Partition image file name |
+| `start` | Yes | Start offset in 512-byte sectors |
+| `size` | No | Size in sectors; omitted values are inferred from the partition image file |
+| `type` | No | Partition type passed to `sfdisk` |
+| `bootable` | No | Marks the partition bootable when supported by the table type |
 
-### Target
+## Build Targets
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `requires` | `array<string>` | `[]` | Host commands checked before execution |
-| `depends` | `array<string>` | `[]` | Names of other targets this target depends on |
-| `env` | `object` | `{}` | Environment variables passed to actions |
-| `actions` | `array<object>` | `[]` | Action list executed in order |
-| `result` | `array<string>` | `[]` | Globs collected from the working directory and moved to `outputs/<board>/` after the build finishes |
+Each target describes one build unit.
 
-Example:
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `requires` | `[]` | Host commands that must exist before the target runs |
+| `depends` | `[]` | Other targets that must complete first |
+| `env` | `{}` | Environment variables passed to actions |
+| `actions` | `[]` | Ordered build action list |
+| `result` | `[]` | Glob patterns copied out of the target workdir into `outputs/<board>/` |
+
+Example target:
 
 ```jsonnet
 {
@@ -84,7 +121,6 @@ Example:
         CROSS_COMPILE: 'aarch64-linux-gnu-',
       },
       actions: [
-        { use: 'git', src: 'https://github.com/torvalds/linux' },
         { use: 'make', args: 'defconfig' },
         { use: 'make' },
       ],
@@ -94,75 +130,108 @@ Example:
 }
 ```
 
-Rules:
+Target rules:
 
-- By default, targets are scheduled concurrently according to their dependency graph
-- With `--debug`, targets wait one by one to make interactive debugging practical
-- `actions` inside the same target always run strictly in order
-- Each target works in `build/<board>/<target>/`, which is recreated before every build
-- Before each action runs, `.env` is reloaded and overrides variables with the same name from `target.env`
-- Files or directories matched by `result` are moved to the root of `outputs/<board>/`
-- `BDIR` is the absolute path to the current board directory
+- Targets run in `build/<board>/<target>/`.
+- Each target workdir is recreated before the target runs.
+- Target dependencies are declared with `depends`.
+- Actions inside one target run in order.
+- Files matched by `result` are moved to `outputs/<board>/`.
+- A `.env` file written by one action can pass variables to later actions in the same target.
 
-Helpers:
+## Shared Helpers
 
-- `boards/common.jsonnet` provides `partitions`, `images`, `target`, and template helpers such as `opensbi`, `uboot`, and `kernel`
-- In those template helpers, `prebuild` is inserted before the default build actions, and `postbuild` is appended after them
+Prefer `boards/common.jsonnet` when it fits the board.
 
-## Action
+Available helpers:
 
-Every action must include a `use` field. `BuildManager` loads `actions/<use>.py` and calls `run()`.
+| Helper | Purpose |
+| --- | --- |
+| `partitions` | Shared `rootfs.img`, `boot.img`, and `efi.img` partition definitions |
+| `images` | Shared `sdcard.img` image definition |
+| `target(...)` | Creates a target with shared architecture environment values |
+| `opensbi(...)` | Common OpenSBI build target template |
+| `uboot(...)` | Common U-Boot build target template |
+| `kernel(...)` | Common Linux kernel build target template |
 
-- The action working directory is always the current target working directory
-- The effective environment for an action is `os.environ + target.env + .env`
-- If an action writes `.env`, the new values take effect starting from the next action
-- See [actions/](./actions/) for details
+The template helpers accept `prebuild` and `postbuild` action lists for board-specific adjustments.
 
-## Debugging
+## Actions
 
-`--debug` accepts breakpoint patterns in this format:
+Actions are selected by the `use` field.
 
-```text
-TARGET[:INDEX][,...]
-```
+Action implementations live in `actions/`. Action field documentation lives in `docs/en_US/actions/`.
 
-- `*` matches all targets or actions
-- `kernel` means `kernel:*`
-- `*:1` matches action `1` on all targets
-- `kernel:*` matches all `kernel` actions
-- `kernel:1` matches action `1` on `kernel`
+When adding a target, use an existing action before adding a new one. If a new action is required, add `actions/<name>.py` and document its fields under `docs/en_US/actions/<name>.md`.
 
-`--debug` without a value is equivalent to `--debug '*'`. Use `--skipbuild --skipimage --debug` to print only the parsed Jsonnet config.
+## Image Scripts
 
-## Image Stage
+Image scripts customize the temporary root filesystem and final image inputs.
 
-Flow:
+Script locations:
 
-1. Create `build/<board>/_image/` and `rootfs/`
-2. Create and mount partition images from top-level `partitions` entries with `mountpoint`
-3. Run `pre` and `post` scripts
-4. Unmount partitions
-5. Write final disk images from `images` using `sfdisk`
+| Path | Purpose |
+| --- | --- |
+| `adapters/<adapter>/pre/*.sh` | Adapter pre-stage scripts |
+| `boards/<board>/pre/*.sh` | Board pre-stage scripts |
+| `adapters/<adapter>/post/*.sh` | Adapter post-stage scripts |
+| `boards/<board>/post/*.sh` | Board post-stage scripts |
 
-Rules:
+Script rules:
 
-- `*.sh` files are collected from both `adapters/<adapter>/<stage>/` and `boards/<board>/<stage>/`
-- Scripts in the same stage run in filename order
-- The script working directory is `ROOTFS`
-- `images[].name` is used as the final disk image output name
-- Do not define external images in top-level `partitions`; reference their file name directly from `images[].partitions[]`; `size` may be provided explicitly or omitted to auto-detect from file size
+- `pre` runs before `post`.
+- Adapter and board scripts are both included.
+- Scripts in each stage run in filename order.
+- Scripts run in one shell session, so functions defined by earlier scripts can be used by later scripts.
+- The script working directory is `ROOTFS`.
 
 Script environment variables:
 
-| Variable | Description |
+| Variable | Purpose |
 | --- | --- |
 | `ROOTFS` | Temporary root filesystem directory |
-| `BOARD_NAME` | Name of the current board directory |
+| `BOARD_NAME` | Current board directory name |
 | `BOARD_DIR` | Absolute path to the current board directory |
 | `ADAPTER_NAME` | Current adapter name |
 | `ADAPTER_DIR` | Absolute path to the current adapter directory |
-| `BUILD_DIR` | Absolute path to the current board build directory |
-| `OUTPUT_DIR` | Absolute path to the current board output directory |
-| `FIRMWARE_DIR` | Currently the same as `OUTPUT_DIR` |
-| `ARCH` | Target architecture |
-| `DESKTOP` | Desktop profile name passed from the command line |
+| `BUILD_DIR` | Absolute path to `build/<board>/` |
+| `OUTPUT_DIR` | Absolute path to `outputs/<board>/` |
+| `FIRMWARE_DIR` | Same value as `OUTPUT_DIR` |
+| `ARCH` | Board architecture from `config.jsonnet` |
+| `DESKTOP` | Value passed with `--desktop` |
+
+## Debugging
+
+Print the final JSON config produced after Jsonnet evaluation, without running build or image stages:
+
+```sh
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
+```
+
+Open a debug shell before matching actions:
+
+```sh
+python main.py -b <board> -a <adapter> --debug <target[:index]>
+```
+
+Patterns:
+
+| Pattern | Meaning |
+| --- | --- |
+| `*` | All targets and actions |
+| `kernel` | All actions in `kernel` |
+| `kernel:0` | First action in `kernel` |
+| `*:1` | Second action in every target |
+
+Action indexes are zero-based.
+
+## Validation
+
+Useful checks after changing SDK configs:
+
+```sh
+python main.py --help
+
+# check the final JSON config produced from `boards/<board>/config.jsonnet`.
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
+```

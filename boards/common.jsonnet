@@ -110,6 +110,7 @@ function(arch) {
   },
 
   opensbi(repourl, args='PLATFORM=generic', prebuild=[], postbuild=[], result=['build/platform/generic/firmware/fw_dynamic.bin'])::
+    local requires = ['git', 'patch', 'make', envs[arch].opensbi.CROSS_COMPILE + 'gcc'];
     local actions = [
       {
         use: 'git',
@@ -121,9 +122,10 @@ function(arch) {
         args: args,
       },
     ] + postbuild;
-    self.target('opensbi', actions, result, ['git', 'patch', 'make']),
+    self.target('opensbi', actions, result, requires),
 
   uboot(repourl, defconfig, args='', prebuild=[], postbuild=[], result=['u-boot.bin'])::
+    local requires = ['git', 'patch', 'make', envs[arch].uboot.CROSS_COMPILE + 'gcc'];
     local actions = [
       {
         use: 'git',
@@ -139,9 +141,10 @@ function(arch) {
         args: args,
       },
     ] + postbuild;
-    self.target('uboot', actions, result, ['git', 'patch', 'make']),
+    self.target('uboot', actions, result, requires),
 
   kernel(repourl, defconfig, args='', prebuild=[], postbuild=[], result=['arch/*/boot/Image.gz', 'modules', 'dtb'])::
+    local requires = ['git', 'patch', 'make', envs[arch].kernel.CROSS_COMPILE + 'gcc'];
     local actions = [
       {
         use: 'git',
@@ -165,5 +168,5 @@ function(arch) {
         args: 'INSTALL_DTBS_PATH=dtb dtbs_install',
       },
     ] + postbuild;
-    self.target('kernel', actions, result, ['git', 'patch', 'make']),
+    self.target('kernel', actions, result, requires),
 }

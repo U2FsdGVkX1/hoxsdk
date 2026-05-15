@@ -11,21 +11,7 @@ Hox SDK 根据板级配置和 adapter 脚本构建板级产物并打包磁盘镜
 
 构建阶段会把产物写入 `outputs/<board>/`。镜像阶段会使用这些产物，并把最终磁盘镜像写入同一个输出目录。
 
-## 当前可用的 Boards 和 Adapters
 
-当前仓库包含的 boards：
-
-| Board 参数 | 配置 |
-| --- | --- |
-| `QEMU/Generic` | `boards/QEMU/Generic/config.jsonnet` |
-| `AMLogic-S905D5/VSAI-LogicPi-A1` | `boards/AMLogic-S905D5/VSAI-LogicPi-A1/config.jsonnet` |
-
-当前仓库包含的 adapters：
-
-| Adapter 参数 | 路径 |
-| --- | --- |
-| `alpine` | `adapters/alpine/` |
-| `fedora` | `adapters/fedora/` |
 
 ## 需求
 
@@ -59,25 +45,25 @@ python main.py --help
 构建并打包镜像：
 
 ```sh
-python main.py -b QEMU/Generic -a alpine
+python main.py -b <board> -a <adapter>
 ```
 
 只运行构建阶段：
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipimage
+python main.py -b <board> -a <adapter> --skipimage
 ```
 
 基于已有输出只运行镜像阶段：
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipbuild
+python main.py -b <board> -a <adapter> --skipbuild
 ```
 
 输出 Jsonnet 求值后的最终 JSON 配置，不构建、不打包：
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipbuild --skipimage --debug
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
 ```
 
 使用参数文件：

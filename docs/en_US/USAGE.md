@@ -11,21 +11,7 @@ A run selects:
 
 The build stage writes artifacts to `outputs/<board>/`. The image stage uses those artifacts and writes final disk images to the same output directory.
 
-## Available Boards And Adapters
 
-Boards currently present in this repository:
-
-| Board argument | Config |
-| --- | --- |
-| `QEMU/Generic` | `boards/QEMU/Generic/config.jsonnet` |
-| `AMLogic-S905D5/VSAI-LogicPi-A1` | `boards/AMLogic-S905D5/VSAI-LogicPi-A1/config.jsonnet` |
-
-Adapters currently present in this repository:
-
-| Adapter argument | Path |
-| --- | --- |
-| `alpine` | `adapters/alpine/` |
-| `fedora` | `adapters/fedora/` |
 
 ## Requirements
 
@@ -59,25 +45,25 @@ python main.py --help
 Build and package an image:
 
 ```sh
-python main.py -b QEMU/Generic -a alpine
+python main.py -b <board> -a <adapter>
 ```
 
 Run only the build stage:
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipimage
+python main.py -b <board> -a <adapter> --skipimage
 ```
 
 Run only the image stage from existing outputs:
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipbuild
+python main.py -b <board> -a <adapter> --skipbuild
 ```
 
 Print the final JSON config produced after Jsonnet evaluation, without building or packaging:
 
 ```sh
-python main.py -b QEMU/Generic -a alpine --skipbuild --skipimage --debug
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
 ```
 
 Use an argument file:

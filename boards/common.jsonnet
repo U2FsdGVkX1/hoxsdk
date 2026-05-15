@@ -57,22 +57,27 @@ function(arch) {
   local MiB = 1024 * KiB,
   local GiB = 1024 * MiB,
 
+  local efi_size = 500 * MiB,
+  local boot_size = 1 * GiB,
+  local rootfs_size = 15 * GiB,
+  local alignment = 1 * MiB,
+
   partitions: [
     {
       name: 'rootfs.img',
-      size: 15 * GiB,
+      size: rootfs_size,
       mkfs: 'mkfs.ext4',
       mountpoint: '/',
     },
     {
       name: 'boot.img',
-      size: 1 * GiB,
+      size: boot_size,
       mkfs: 'mkfs.ext4',
       mountpoint: '/boot',
     },
     {
       name: 'efi.img',
-      size: 500 * MiB,
+      size: efi_size,
       mkfs: 'mkfs.fat -F 32',
       mountpoint: '/boot/efi',
     },
@@ -85,17 +90,17 @@ function(arch) {
       partitions: [
         {
           name: 'efi.img',
-          start: 1 * MiB,
+          start: alignment,
           type: 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B',
         },
         {
           name: 'boot.img',
-          start: 1 * MiB + 500 * MiB,
+          start: alignment + efi_size,
           type: 'BC13C2FF-59E6-4262-A352-B275FD6F7172',
         },
         {
           name: 'rootfs.img',
-          start: 1 * MiB + 500 * MiB + 1 * GiB,
+          start: alignment + efi_size + boot_size,
           type: '0FC63DAF-8483-4772-8E79-3D69D8477DE4',
         },
       ],

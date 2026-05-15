@@ -18,7 +18,7 @@ Boards currently present in this repository:
 | Board argument | Config |
 | --- | --- |
 | `QEMU/Generic` | `boards/QEMU/Generic/config.jsonnet` |
-| `AMLogic-S905D5/VSAI-BQ201` | `boards/AMLogic-S905D5/VSAI-BQ201/config.jsonnet` |
+| `AMLogic-S905D5/VSAI-LogicPi-A1` | `boards/AMLogic-S905D5/VSAI-LogicPi-A1/config.jsonnet` |
 
 Adapters currently present in this repository:
 

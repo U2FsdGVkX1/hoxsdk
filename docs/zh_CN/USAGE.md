@@ -18,7 +18,7 @@ Hox SDK 根据板级配置和 adapter 脚本构建板级产物并打包磁盘镜
 | Board 参数 | 配置 |
 | --- | --- |
 | `QEMU/Generic` | `boards/QEMU/Generic/config.jsonnet` |
-| `AMLogic-S905D5/VSAI-BQ201` | `boards/AMLogic-S905D5/VSAI-BQ201/config.jsonnet` |
+| `AMLogic-S905D5/VSAI-LogicPi-A1` | `boards/AMLogic-S905D5/VSAI-LogicPi-A1/config.jsonnet` |
 
 当前仓库包含的 adapters：
 

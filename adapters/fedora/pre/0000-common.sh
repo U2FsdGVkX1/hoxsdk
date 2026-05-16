@@ -1,1 +1,0 @@
-../../alpine/pre/0000-common.sh

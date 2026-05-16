@@ -1,191 +1,135 @@
 # Hox SDK 开发者文档
 
-## 目的
+## 概念
 
-本文说明如何添加或维护 SDK 的板级配置、构建目标、action 和镜像脚本。
+SDK 通过组合 **board 配置** 和 **adapter 配置** 驱动构建与镜像生成。
 
-## 仓库结构
+- **Board 配置** (`boards/<board>/config.py`)：定义架构、分区、镜像和模块列表。
+- **Adapter 配置** (`adapters/<adapter>/config.py`)：提供发行版相关模块。
+- **Module**：构建 (`build`) 与安装 (`install`) 的可插拔单元，通过 `build_after`、`build_before`、`install_after` 和 `install_before` 控制执行顺序。
+- **Action**：模块的构建 action，实现见 `actions/`，字段文档见 `docs/zh_CN/actions/`。
+- **Install 片段**：模块的安装单元，在镜像生成阶段运行，用于定制 rootfs。
 
-| 路径 | 用途 |
-| --- | --- |
-| `main.py` | SDK 命令入口 |
-| `boards/` | 板级定义和板级资源 |
-| `boards/common.jsonnet` | 通用分区、镜像和构建目标的 Jsonnet 辅助项 |
-| `adapters/` | 发行版 rootfs 和镜像定制脚本 |
-| `actions/` | 可复用构建 action |
-| `docs/zh_CN/actions/` | action 字段参考文档 |
-| `build/` | 生成的工作目录 |
-| `outputs/` | 生成的构建产物和磁盘镜像 |
-| `logs/` | 命令日志 |
+运行命令：
 
-SDK 开发者主要会接触这些格式：
-
-- Jsonnet：板级配置
-- Shell 脚本：镜像定制
-- Python：SDK 框架 action 和命令编排
-
-## 添加或更新板级配置
-
-板级配置位于 `boards/<board>/`，其中 `<board>` 是传给 `python main.py -b` 的值。
-
-必需文件：
-
-| 路径 | 用途 |
-| --- | --- |
-| `boards/<board>/config.jsonnet` | 板级架构、构建目标、分区布局和最终镜像布局 |
-
-可选板级目录：
-
-| 路径 | 用途 |
-| --- | --- |
-| `boards/<board>/pre/` | 镜像 pre 阶段运行的板级脚本 |
-| `boards/<board>/post/` | 镜像 post 阶段运行的板级脚本 |
-| 其他板级本地路径 | 配置或脚本引用的补丁、overlay、固件或其他板级资源 |
-
-`main.py` 会把 `BDIR` 作为当前板级目录的绝对路径传给 Jsonnet。配置需要引用板级本地文件时可以使用它：
-
-```jsonnet
-local BDIR = std.extVar('BDIR');
+```sh
+python main.py -b <board> -a <adapter>
 ```
 
-最小板级配置：
+`<board>` 是 `boards/` 下的相对路径，`<adapter>` 是 `adapters/` 下的目录名。
 
-```jsonnet
-{
-  arch: 'riscv64',
-  partitions: [],
-  images: [],
-  targets: {},
-}
+## 编写 Board 配置
+
+Board 配置是 Python DSL 文件，导出 `configure(ctx) -> Board`。`ConfigContext` 主要属性：
+
+- `ctx.adapter` — 加载当前选择的 adapter 模块列表。
+- `ctx.BOARD_DIR` — board 目录绝对路径；用 `ctx.BOARD_DIR / "file"` 引用 board 本地文件。
+- `ctx.ADAPTER_DIR` — adapter 目录绝对路径；用 `ctx.ADAPTER_DIR / "file"` 引用 adapter 本地文件（主要在 adapter 配置中使用）。
+- `ctx.ADAPTER_NAME` — 当前 adapter 名称字符串。
+
+最小 board 配置：
+
+```python
+from boards.common import default_images, default_partitions
+from hox import Board, ConfigContext
+
+
+def configure(ctx: ConfigContext) -> Board:
+    arch = "riscv64"
+    return Board(
+        arch=arch,
+        partitions=default_partitions(),
+        images=default_images(),
+        modules=ctx.adapter,
+    )
 ```
 
-## 板级配置字段
-
-顶层字段：
+### 顶层字段
 
 | 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `arch` | 生成镜像时必需 | 目标架构，会作为 `ARCH` 传给镜像脚本 |
-| `partitions` | 否 | 脚本运行前需要创建、格式化并挂载的分区镜像 |
-| `images` | 否 | 需要写出的最终磁盘镜像 |
-| `targets` | 否 | 构建目标集合，键为 target 名称 |
+| `arch` | 镜像生成时 | 目标架构，作为 `ARCH` 传入安装脚本 |
+| `partitions` | 否 | 分区镜像定义 |
+| `images` | 否 | 最终磁盘镜像定义 |
+| `modules` | 否 | 构建和安装模块列表 |
 
-`partitions` 字段中的条目：
+### `partitions` 字段
 
 | 字段 | 必需 | 用途 |
 | --- | --- | --- |
 | `name` | 是 | 分区镜像文件名 |
-| `size` | 是 | 分区大小，单位为 512 字节扇区 |
+| `size` | 是 | 分区大小（512 字节扇区数） |
 | `mkfs` | 是 | 文件系统命令，例如 `mkfs.ext4` |
 | `mountpoint` | 是 | 临时 rootfs 内的挂载点 |
 
-`images` 字段中的条目：
+### `images` 字段
 
 | 字段 | 必需 | 用途 |
 | --- | --- | --- |
-| `name` | 是 | `outputs/<board>/` 下的最终镜像文件名 |
+| `name` | 是 | 最终镜像文件名，位于 `outputs/<board>/` |
 | `table` | 否 | 分区表类型：`gpt` 或 `dos`；默认是 `gpt` |
 | `partitions` | 是 | 最终镜像中的分区引用列表，顺序即分区顺序 |
 
-`images[].partitions` 字段中的条目：
+### `images[].partitions` 字段
 
 | 字段 | 必需 | 用途 |
 | --- | --- | --- |
 | `name` | 是 | 分区镜像文件名 |
-| `start` | 是 | 起始偏移，单位为 512 字节扇区 |
-| `size` | 否 | 分区大小，单位为扇区；省略时根据分区镜像文件大小推断 |
+| `start` | 是 | 起始偏移（512 字节扇区数） |
+| `size` | 否 | 大小（扇区数）；省略时从分区镜像文件推断 |
 | `type` | 否 | 传给 `sfdisk` 的分区类型 |
 | `bootable` | 否 | 在分区表支持时标记为可启动分区 |
 
-## `targets` 字段
+## 模块
 
-每个 target 描述一个构建单元。
+模块是 `Module(...)` 值。Board 配置将 adapter 模块与 board 模块组合；执行顺序由 `build_after`、`build_before`、`install_after` 和 `install_before` 决定。
 
 | 字段 | 默认值 | 用途 |
 | --- | --- | --- |
-| `requires` | `[]` | target 运行前必须存在的宿主机命令 |
-| `depends` | `[]` | 必须先完成的其他 target |
-| `env` | `{}` | 传给 action 的环境变量 |
-| `actions` | `[]` | 按顺序执行的构建 action 列表 |
-| `result` | `[]` | 从 target 工作目录移动到 `outputs/<board>/` 的 glob 匹配规则 |
+| `name` | 必填 | 唯一名称；有 `build` action 时也作为构建工作目录 |
+| `build_after` | `[]` | 指定哪些模块必须先完成构建 |
+| `build_before` | `[]` | 指定哪些模块必须在此模块之后构建 |
+| `install_after` | `[]` | 指定哪些模块必须先完成安装 |
+| `install_before` | `[]` | 指定哪些模块必须在此模块之后安装；适合将 board 模块插入 adapter 最终化步骤之前 |
+| `requires` | `[]` | 运行前必须存在的宿主机命令 |
+| `env` | `{}` | 传入构建 action 的环境变量 |
+| `build` | `[]` | 构建 action 列表 |
+| `install` | `[]` | 安装项；`Path` 以 `source` 方式执行脚本，`str` 直接作为 shell 命令执行 |
 
-target 示例：
+构建模块示例：
 
-```jsonnet
-{
-  targets: {
-    kernel: {
-      requires: ['make'],
-      env: {
-        ARCH: 'arm64',
-        CROSS_COMPILE: 'aarch64-linux-gnu-',
-      },
-      actions: [
-        { use: 'make', args: 'defconfig' },
-        { use: 'make' },
-      ],
-      result: ['arch/*/boot/Image.gz'],
-    },
-  },
-}
+```python
+Module(
+    name="firmware",
+    requires=["make"],
+    env={"ARCH": "arm64", "CROSS_COMPILE": "aarch64-linux-gnu-"},
+    build=[make(args="defconfig"), make()],
+)
 ```
 
-target 规则：
+安装模块示例：
 
-- target 在 `build/<board>/<target>/` 中运行。
-- 每次运行 target 前都会重新创建对应工作目录。
-- target 依赖通过 `depends` 声明。
-- 同一 target 内的 action 按顺序运行。
-- `result` 匹配到的文件会移动到 `outputs/<board>/`。
-- action 写入的 `.env` 文件可以把变量传给同一 target 后续 action。
+```python
+Module(
+    name="board-customization",
+    install_after=["image-fstab"],
+    install=[
+        "echo hello",
+        ctx.BOARD_DIR / "200-customization.sh",
+    ],
+)
+```
 
-## 通用辅助项
+- 有 `build` action 的模块在 `build/<board>/<module>/` 中运行，工作目录每次重建。
+- 同一模块内构建 action 按顺序执行，action 写入的 `.env` 可传变量给后续构建 action。
+- 构建阶段，`build_after` 和 `build_before` 约束全部满足的模块并发执行。
+- install 片段在镜像生成阶段按 `install_after` 和 `install_before` 拓扑顺序运行，通过 `MODULE_DIR` 和 `BUILD_DIR` 访问构建产物。
 
-如果适合当前板级配置，优先使用 `boards/common.jsonnet`。
+## Install 片段
 
-可用辅助项：
+在模块的 `install` 字段中引用。`str` 值直接作为 shell 命令执行；`Path` 值以 `source` 方式执行脚本。adapter 片段放在 `adapters/<adapter>/`，board 片段放在 `boards/<board>/`，共享片段放在 `boards/`。
 
-| 辅助项 | 用途 |
-| --- | --- |
-| `partitions` | 通用 `rootfs.img`、`boot.img` 和 `efi.img` 分区定义 |
-| `images` | 通用 `sdcard.img` 镜像定义 |
-| `target(...)` | 使用共享架构环境变量创建 target |
-| `opensbi(...)` | 通用 OpenSBI 构建 target 模板 |
-| `uboot(...)` | 通用 U-Boot 构建 target 模板 |
-| `kernel(...)` | 通用 Linux kernel 构建 target 模板 |
-
-模板辅助项支持通过 `prebuild` 和 `postbuild` action 列表加入板级定制步骤。
-
-## Actions
-
-action 通过 `use` 字段选择。
-
-action 实现位于 `actions/`。action 字段文档位于 `docs/zh_CN/actions/`。
-
-添加 target 时，优先使用已有 action。只有确实需要时才新增 action；新增时需要添加 `actions/<name>.py`，并在 `docs/zh_CN/actions/<name>.md` 中记录字段说明。
-
-## 镜像脚本
-
-镜像脚本用于定制临时 rootfs 和最终镜像输入。
-
-脚本位置：
-
-| 路径 | 用途 |
-| --- | --- |
-| `adapters/<adapter>/pre/*.sh` | adapter pre 阶段脚本 |
-| `boards/<board>/pre/*.sh` | board pre 阶段脚本 |
-| `adapters/<adapter>/post/*.sh` | adapter post 阶段脚本 |
-| `boards/<board>/post/*.sh` | board post 阶段脚本 |
-
-脚本规则：
-
-- `pre` 先于 `post` 运行。
-- adapter 脚本和 board 脚本都会被包含。
-- 同一阶段内脚本按文件名顺序运行。
-- 脚本在同一个 shell 会话中运行，因此前面脚本定义的函数可被后续脚本使用。
-- 脚本工作目录是 `ROOTFS`。
-
-脚本环境变量：
+所有片段在同一 shell 会话中按 `install_after` 拓扑顺序运行，工作目录为 `ROOTFS`。前面片段定义的函数和变量可被后续片段使用。
 
 | 变量 | 用途 |
 | --- | --- |
@@ -194,44 +138,60 @@ action 实现位于 `actions/`。action 字段文档位于 `docs/zh_CN/actions/`
 | `BOARD_DIR` | 当前 board 目录绝对路径 |
 | `ADAPTER_NAME` | 当前 adapter 名称 |
 | `ADAPTER_DIR` | 当前 adapter 目录绝对路径 |
+| `MODULE_DIR` | 当前模块的 `build/<board>/<module>/` 绝对路径 |
 | `BUILD_DIR` | `build/<board>/` 的绝对路径 |
 | `OUTPUT_DIR` | `outputs/<board>/` 的绝对路径 |
-| `FIRMWARE_DIR` | 与 `OUTPUT_DIR` 相同 |
-| `ARCH` | `config.jsonnet` 中的 board 架构 |
-| `DESKTOP` | 通过 `--desktop` 传入的值 |
+| `ARCH` | `config.py` 中的 `arch` 值 |
+
+## 通用辅助项
+
+`boards/common.py` 提供共享默认值和固件模板：
+
+- `default_partitions()` — 标准分区布局（rootfs、boot、efi）。
+- `default_images()` — 标准磁盘镜像布局（sdcard.img）。
+- `firmware(arch)` — 返回包含 `opensbi`、`uboot` 和 `kernel` 工厂函数的命名空间。通用参数：`src`、`args`、`prebuild`、`postbuild`、`install`、`build_after`、`build_before`、`install_after`、`install_before`。此外 `uboot` 和 `kernel` 还接受 `defconfig`。
+
+从 `hox` 导入 API 类型，从 `actions` 导入 action 构造器：
+
+```python
+from hox import Board, ConfigContext, Module
+from actions import make
+```
+
+Board 配置通过 `ctx.adapter` 加载当前 adapter。
+
+## Actions
+
+每个 action 模块导出 `Action` 类，`actions/__init__.py` 会为配置 re-export 常用构造器：`from actions import git, make, cp, patch, shell`。`BaseAction.use` 由模块名派生。
 
 ## 调试
 
-输出 Jsonnet 求值后的最终 JSON 配置，不运行构建阶段和镜像阶段：
+输出最终配置（不运行构建和镜像）：
 
 ```sh
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
 ```
 
-在匹配的 action 前打开调试 shell：
+在匹配的构建 action 执行前暂停并打开交互式 shell：
 
 ```sh
-python main.py -b <board> -a <adapter> --debug <target[:index]>
+python main.py -b <board> -a <adapter> --debug <pattern>
 ```
 
-匹配模式：
+`--debug` 的影响：
+
+- 打印 Python DSL 求值并经 Pydantic 验证后的最终配置。
+- 命中匹配的构建 action 时，在 `build/<board>/<module>/` 目录下打开 shell，环境变量包含模块 `env` 和 `.env` 文件内容。退出 shell 后继续执行。
+- 命中匹配模块时，构建阶段不会并发执行，改为逐个顺序执行，便于调试。
+
+`<pattern>` 格式为 `MODULE[:INDEX][,...]`，可同时匹配多个位置：
 
 | 模式 | 含义 |
 | --- | --- |
-| `*` | 全部 target 和 action |
-| `kernel` | `kernel` 中的全部 action |
-| `kernel:0` | `kernel` 中的第一个 action |
-| `*:1` | 每个 target 中的第二个 action |
+| `*` | 全部模块的构建 action |
+| `kernel` | `kernel` 模块的全部构建 action |
+| `kernel:0` | `kernel` 模块的第 1 个构建 action |
+| `*:1` | 每个模块的第 2 个构建 action |
+| `opensbi:0,kernel:0` | `opensbi` 的第 1 个和 `kernel` 的第 1 个构建 action |
 
-action 索引从 0 开始。
-
-## 验证
-
-修改 SDK 配置后可使用这些检查：
-
-```sh
-python main.py --help
-
-# 检查 `boards/<board>/config.jsonnet` 生成的最终 JSON 配置。
-python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
-```
+不传值时默认匹配 `*`。构建 action 索引从 0 开始。

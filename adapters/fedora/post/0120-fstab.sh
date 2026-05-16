@@ -1,1 +1,0 @@
-../../alpine/post/0120-fstab.sh

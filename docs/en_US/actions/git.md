@@ -1,21 +1,21 @@
 # `git`
 
-Clone a Git repository into the current target working directory.
+Clone a Git repository into the current module working directory.
 
 ## Example
 
-```jsonnet
-{ use: 'git', src: 'https://example.com/repo.git' }
+```python
+git(src="https://example.com/repo.git")
 ```
 
 ## Fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `src` | `string` | Yes | Git repository URL |
-| `path` | `string` | No | Destination path for the clone. Default is `.`, and relative paths are resolved from the current target working directory |
-| `branch` | `string` | No | Branch to clone |
-| `hash` | `string` | No | Commit hash to check out after cloning |
+| `src` | `str` | Yes | Git repository URL |
+| `path` | `Path` | No | Destination path for the clone. Default is `Path(".")`; relative paths are resolved from the current module working directory |
+| `branch` | `str` | No | Branch to clone |
+| `hash` | `str` | No | Commit hash to check out after cloning |
 
 ## Rules
 

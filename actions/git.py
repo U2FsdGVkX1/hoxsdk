@@ -8,7 +8,7 @@ from process import shell
 
 class Action(BaseAction):
     src: str
-    path: str = "."
+    path: Path = Path(".")
     branch: str | None = None
     commit_hash: str | None = Field(default=None, alias="hash")
 

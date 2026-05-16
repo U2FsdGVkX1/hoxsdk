@@ -4,16 +4,16 @@ Copy a file or directory to the target location.
 
 ## Example
 
-```jsonnet
-{ use: 'cp', src: BDIR + '/kernel.config', dest: '.config' }
+```python
+cp(src=ctx.BOARD_DIR / "kernel.config", dest=Path(".config"))
 ```
 
 ## Fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `src` | `string` | Yes | Source path. Absolute paths are allowed; relative paths are resolved from the current target working directory |
-| `dest` | `string` | Yes | Destination path. Absolute paths are allowed; relative paths are resolved from the current target working directory |
+| `src` | `Path` | Yes | Source path. Absolute paths are allowed; relative paths are resolved from the current module working directory |
+| `dest` | `Path` | Yes | Destination path. Absolute paths are allowed; relative paths are resolved from the current module working directory |
 
 ## Rules
 

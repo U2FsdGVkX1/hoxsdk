@@ -2,75 +2,35 @@
 
 ## Overview
 
-Hox SDK builds board artifacts and packages disk images from board configs and adapter scripts.
-
-A run selects:
-
-- A board config from `boards/<board>/config.jsonnet`.
-- An image adapter from `adapters/<adapter>/`.
-
-The build stage writes artifacts to `outputs/<board>/`. The image stage uses those artifacts and writes final disk images to the same output directory.
-
-
-
-## Requirements
-
-Root Python dependencies:
-
-- Python 3.10+
-- `_jsonnet`
-- `pydantic`
-
-Common host tools used by image generation:
-
-- `sfdisk`
-- `dd`
-- `sudo`
-- `bash`
-- `mount`
-- `umount`
-
-Board targets may require additional tools such as `git`, `patch`, `make`, or cross compilers. Check `requires` in the selected board config.
-
-Dependency installation commands are Unknown because this repository does not provide root package metadata.
-
-## Commands
-
-Show CLI help:
-
-```sh
-python main.py --help
-```
-
-Build and package an image:
+Hox SDK builds artifacts and packages disk images from board and adapter configs.
 
 ```sh
 python main.py -b <board> -a <adapter>
 ```
 
-Run only the build stage:
+`<board>` is a path relative to `boards/`, `<adapter>` is a directory name under `adapters/`.
+
+The build stage runs module `build` actions in `build/<board>/<module>/`. The image stage formats partition images, runs module `install` scripts, and writes final disk images to `outputs/<board>/`.
+
+## Requirements
+
+Python dependency: `pydantic` (requires Python 3.10+).
+
+Common host tools for image generation: `sfdisk`, `dd`, `sudo`, `bash`, `mount`, `umount`.
+
+Module `requires` may declare additional tools (e.g. `git`, `patch`, `make`, or cross compilers).
+
+## Commands
 
 ```sh
-python main.py -b <board> -a <adapter> --skipimage
+python main.py -b <board> -a <adapter>                          # build and package
+python main.py -b <board> -a <adapter> --skipimage             # build stage only
+python main.py -b <board> -a <adapter> --skipbuild              # image stage only
+python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug  # config only
+python main.py --help                                            # show help
 ```
 
-Run only the image stage from existing outputs:
-
-```sh
-python main.py -b <board> -a <adapter> --skipbuild
-```
-
-Print the final JSON config produced after Jsonnet evaluation, without building or packaging:
-
-```sh
-python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
-```
-
-Use an argument file:
-
-```sh
-python main.py @args.txt
-```
+Argument file support: `python main.py @args.txt`
 
 ## Arguments
 
@@ -78,23 +38,31 @@ python main.py @args.txt
 | --- | --- | --- | --- |
 | `-b`, `--board` | Yes | None | Board path relative to `boards/` |
 | `-a`, `--adapter` | Yes | None | Adapter directory name under `adapters/` |
-| `--desktop` | No | `minimal` | Desktop profile name passed to image scripts |
+| `--desktop` | No | `minimal` | Desktop profile name |
 | `--skipbuild` | No | `false` | Skip the build stage |
 | `--skipimage` | No | `false` | Skip the image stage |
-| `--debug [TARGET[:INDEX][,...]]` | No | Empty; `*` when used without a value | Print config and open a shell before matching actions |
+| `--debug [PATTERN]` | No | Empty; `*` when used without a value | Print config and open a shell before matching build actions. See Debugging |
 
 ## Outputs
 
 | Path | Description |
 | --- | --- |
-| `build/<board>/<target>/` | Per-target build workdir |
+| `build/<board>/<module>/` | Per-module build workdir |
 | `build/<board>/_image/` | Image-stage workdir |
-| `outputs/<board>/` | Build artifacts and generated images |
+| `outputs/<board>/` | Generated disk images |
 | `logs/<board>/` | Command logs |
 
-## Notes
+## Debugging
 
-- Board names are paths relative to `boards/`.
-- Adapter names are directory names under `adapters/`.
-- The shared default final image name is `sdcard.img` when using `boards/common.jsonnet` defaults.
-- Needs verification: Fedora adapter post scripts call `chroot_rootfs`, but no Fedora-local definition was found.
+`--debug` prints the final config after Python DSL evaluation and pauses before matched build actions, opening an interactive shell in the module workdir.
+
+`PATTERN` format is `MODULE[:INDEX][,...]`:
+
+| Pattern | Meaning |
+| --- | --- |
+| `*` | All build actions in all modules |
+| `kernel` | All build actions in the `kernel` module |
+| `kernel:0` | First build action in the `kernel` module |
+| `opensbi:0,kernel:0` | Multiple match positions |
+
+Build action indexes are zero-based. When any module is matched, the build stage runs sequentially instead of concurrently.

@@ -4,18 +4,15 @@ Apply patch files in order.
 
 ## Example
 
-```jsonnet
-{
-  use: 'patch',
-  patches: [BDIR + '/fix.patch'],
-}
+```python
+patch(patches=[ctx.BOARD_DIR / "fix.patch"])
 ```
 
 ## Fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `patches` | `array<string>` | No | List of patch files. Paths may be absolute or relative to the current target working directory |
+| `patches` | `Sequence[Path]` | No | List of patch files. Paths may be absolute or relative to the current module working directory |
 | `gitam` | `bool` | No | When `true`, use `git am`; otherwise use `patch -p1` |
 
 ## Rules

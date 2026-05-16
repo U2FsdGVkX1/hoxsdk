@@ -1,76 +1,59 @@
 # Hox SDK Developer Guide
 
-## Purpose
+## Concepts
 
-This guide explains how to add or maintain SDK board configs, build targets, actions, and image scripts.
+The SDK drives builds and image generation by composing a **board config** and an **adapter config**.
 
-## Repository Layout
+- **Board config** (`boards/<board>/config.py`): defines architecture, partitions, disk images, and a module list.
+- **Adapter config** (`adapters/<adapter>/config.py`): provides distribution-related modules.
+- **Module**: a pluggable build (`build`) and install (`install`) unit, ordered by `build_after`, `build_before`, `install_after`, and `install_before`.
+- **Action**: a build action within a module. Implementations live in `actions/`; field docs live in `docs/en_US/actions/`.
+- **Install snippet**: an install unit within a module, run during image generation to customize the root filesystem.
 
-| Path | Purpose |
-| --- | --- |
-| `main.py` | SDK command entry point |
-| `boards/` | Board definitions and board-specific assets |
-| `boards/common.jsonnet` | Shared Jsonnet helpers for common partitions, images, and build targets |
-| `adapters/` | Root filesystem and image customization scripts for distributions |
-| `actions/` | Reusable build actions |
-| `docs/en_US/actions/` | Reference docs for action fields |
-| `build/` | Generated working directories |
-| `outputs/` | Generated artifacts and disk images |
-| `logs/` | Command logs |
+Run command:
 
-Primary formats used by SDK authors:
-
-- Jsonnet for board configuration
-- Shell scripts for image customization
-- Python for SDK framework actions and command orchestration
-
-## Add Or Update A Board
-
-A board lives under `boards/<board>/`, where `<board>` is the value passed to `python main.py -b`.
-
-Required file:
-
-| Path | Purpose |
-| --- | --- |
-| `boards/<board>/config.jsonnet` | Board architecture, build targets, partition layout, and final image layout |
-
-Optional board directories:
-
-| Path | Purpose |
-| --- | --- |
-| `boards/<board>/pre/` | Board scripts run during the image pre stage |
-| `boards/<board>/post/` | Board scripts run during the image post stage |
-| Other board-local paths | Patches, overlays, firmware, or other board assets referenced by config or scripts |
-
-`main.py` passes `BDIR` to Jsonnet as the absolute board directory path. Use it when a config needs to reference board-local files:
-
-```jsonnet
-local BDIR = std.extVar('BDIR');
+```sh
+python main.py -b <board> -a <adapter>
 ```
 
-Minimal board config:
+`<board>` is a path relative to `boards/`, `<adapter>` is a directory name under `adapters/`.
 
-```jsonnet
-{
-  arch: 'riscv64',
-  partitions: [],
-  images: [],
-  targets: {},
-}
+## Writing a Board Config
+
+Board configs are Python DSL files exporting `configure(ctx) -> Board`. Key `ConfigContext` attributes:
+
+- `ctx.adapter` — load the selected adapter's module list.
+- `ctx.BOARD_DIR` — absolute path to the board directory; use `ctx.BOARD_DIR / "file"` for board-local files.
+- `ctx.ADAPTER_DIR` — absolute path to the adapter directory; use `ctx.ADAPTER_DIR / "file"` for adapter-local files (mainly in adapter configs).
+- `ctx.ADAPTER_NAME` — selected adapter name string.
+
+A minimal board config:
+
+```python
+from boards.common import default_images, default_partitions
+from hox import Board, ConfigContext
+
+
+def configure(ctx: ConfigContext) -> Board:
+    arch = "riscv64"
+    return Board(
+        arch=arch,
+        partitions=default_partitions(),
+        images=default_images(),
+        modules=ctx.adapter,
+    )
 ```
 
-## Board Config Fields
-
-Top-level fields:
+### Top-Level Fields
 
 | Field | Required | Purpose |
 | --- | --- | --- |
-| `arch` | Yes for image generation | Target architecture passed to image scripts as `ARCH` |
-| `partitions` | No | Partition images to create, format, and mount before scripts run |
-| `images` | No | Final disk images to write |
-| `targets` | No | Build targets keyed by target name |
+| `arch` | Yes for image generation | Target architecture, passed as `ARCH` to install snippets |
+| `partitions` | No | Partition image definitions |
+| `images` | No | Final disk image definitions |
+| `modules` | No | Build and install module list |
 
-Partition fields:
+### `partitions` Fields
 
 | Field | Required | Purpose |
 | --- | --- | --- |
@@ -79,7 +62,7 @@ Partition fields:
 | `mkfs` | Yes | Filesystem command, for example `mkfs.ext4` |
 | `mountpoint` | Yes | Mount point inside the temporary rootfs |
 
-Image fields:
+### `images` Fields
 
 | Field | Required | Purpose |
 | --- | --- | --- |
@@ -87,7 +70,7 @@ Image fields:
 | `table` | No | Partition table type: `gpt` or `dos`; default is `gpt` |
 | `partitions` | Yes | Partition references in final image order |
 
-Image partition fields:
+### `images[].partitions` Fields
 
 | Field | Required | Purpose |
 | --- | --- | --- |
@@ -97,95 +80,56 @@ Image partition fields:
 | `type` | No | Partition type passed to `sfdisk` |
 | `bootable` | No | Marks the partition bootable when supported by the table type |
 
-## Build Targets
+## Modules
 
-Each target describes one build unit.
+Modules are `Module(...)` values. Board configs compose adapter modules with board modules; execution order is determined by `build_after`, `build_before`, `install_after`, and `install_before`.
 
 | Field | Default | Purpose |
 | --- | --- | --- |
-| `requires` | `[]` | Host commands that must exist before the target runs |
-| `depends` | `[]` | Other targets that must complete first |
-| `env` | `{}` | Environment variables passed to actions |
-| `actions` | `[]` | Ordered build action list |
-| `result` | `[]` | Glob patterns copied out of the target workdir into `outputs/<board>/` |
+| `name` | Required | Unique name; also used as build workdir when `build` actions are present |
+| `build_after` | `[]` | Module names that must finish building before this module starts building |
+| `build_before` | `[]` | Module names that must build after this module |
+| `install_after` | `[]` | Module names that must finish installing before this module starts installing |
+| `install_before` | `[]` | Module names that must install after this module; useful for inserting board modules before adapter finalization steps |
+| `requires` | `[]` | Host commands that must exist before the module runs |
+| `env` | `{}` | Environment variables passed to build actions |
+| `build` | `[]` | Build action list |
+| `install` | `[]` | Install items; `Path` values are sourced as scripts, `str` values are run as shell commands |
 
-Example target:
+Build module example:
 
-```jsonnet
-{
-  targets: {
-    kernel: {
-      requires: ['make'],
-      env: {
-        ARCH: 'arm64',
-        CROSS_COMPILE: 'aarch64-linux-gnu-',
-      },
-      actions: [
-        { use: 'make', args: 'defconfig' },
-        { use: 'make' },
-      ],
-      result: ['arch/*/boot/Image.gz'],
-    },
-  },
-}
+```python
+Module(
+    name="firmware",
+    requires=["make"],
+    env={"ARCH": "arm64", "CROSS_COMPILE": "aarch64-linux-gnu-"},
+    build=[make(args="defconfig"), make()],
+)
 ```
 
-Target rules:
+Install module example:
 
-- Targets run in `build/<board>/<target>/`.
-- Each target workdir is recreated before the target runs.
-- Target dependencies are declared with `depends`.
-- Actions inside one target run in order.
-- Files matched by `result` are moved to `outputs/<board>/`.
-- A `.env` file written by one action can pass variables to later actions in the same target.
+```python
+Module(
+    name="board-customization",
+    install_after=["image-fstab"],
+    install=[
+        "echo hello",
+        ctx.BOARD_DIR / "200-customization.sh",
+    ],
+)
+```
 
-## Shared Helpers
+- Modules with `build` actions run in `build/<board>/<module>/`; the workdir is recreated each time.
+- Build actions within a module run in order; a `.env` file written by one action passes variables to later build actions in the same module.
+- During build, modules whose `build_after` and `build_before` constraints are all satisfied run concurrently.
+- Install snippets run during image generation in topological order determined by `install_after` and `install_before`, and can access build artifacts via `MODULE_DIR` and `BUILD_DIR`.
 
-Prefer `boards/common.jsonnet` when it fits the board.
+## Install Snippets
 
-Available helpers:
+Referenced in a module's `install` list. `str` values are executed directly as shell commands; `Path` values are sourced as scripts. Adapter snippets go in `adapters/<adapter>/`, board snippets go in `boards/<board>/`, and shared snippets go in `boards/`.
 
-| Helper | Purpose |
-| --- | --- |
-| `partitions` | Shared `rootfs.img`, `boot.img`, and `efi.img` partition definitions |
-| `images` | Shared `sdcard.img` image definition |
-| `target(...)` | Creates a target with shared architecture environment values |
-| `opensbi(...)` | Common OpenSBI build target template |
-| `uboot(...)` | Common U-Boot build target template |
-| `kernel(...)` | Common Linux kernel build target template |
-
-The template helpers accept `prebuild` and `postbuild` action lists for board-specific adjustments.
-
-## Actions
-
-Actions are selected by the `use` field.
-
-Action implementations live in `actions/`. Action field documentation lives in `docs/en_US/actions/`.
-
-When adding a target, use an existing action before adding a new one. If a new action is required, add `actions/<name>.py` and document its fields under `docs/en_US/actions/<name>.md`.
-
-## Image Scripts
-
-Image scripts customize the temporary root filesystem and final image inputs.
-
-Script locations:
-
-| Path | Purpose |
-| --- | --- |
-| `adapters/<adapter>/pre/*.sh` | Adapter pre-stage scripts |
-| `boards/<board>/pre/*.sh` | Board pre-stage scripts |
-| `adapters/<adapter>/post/*.sh` | Adapter post-stage scripts |
-| `boards/<board>/post/*.sh` | Board post-stage scripts |
-
-Script rules:
-
-- `pre` runs before `post`.
-- Adapter and board scripts are both included.
-- Scripts in each stage run in filename order.
-- Scripts run in one shell session, so functions defined by earlier scripts can be used by later scripts.
-- The script working directory is `ROOTFS`.
-
-Script environment variables:
+All snippets run in one shell session in topological order determined by `install_after`, working directory `ROOTFS`. Functions and variables defined by earlier snippets are available to later ones.
 
 | Variable | Purpose |
 | --- | --- |
@@ -194,44 +138,60 @@ Script environment variables:
 | `BOARD_DIR` | Absolute path to the current board directory |
 | `ADAPTER_NAME` | Current adapter name |
 | `ADAPTER_DIR` | Absolute path to the current adapter directory |
+| `MODULE_DIR` | Absolute path to `build/<board>/<module>/` for the module currently contributing install snippets |
 | `BUILD_DIR` | Absolute path to `build/<board>/` |
 | `OUTPUT_DIR` | Absolute path to `outputs/<board>/` |
-| `FIRMWARE_DIR` | Same value as `OUTPUT_DIR` |
-| `ARCH` | Board architecture from `config.jsonnet` |
-| `DESKTOP` | Value passed with `--desktop` |
+| `ARCH` | Board architecture from `config.py` |
+
+## Shared Helpers
+
+`boards/common.py` provides shared defaults and firmware templates:
+
+- `default_partitions()` — standard partition layout (rootfs, boot, efi).
+- `default_images()` — standard disk image layout (sdcard.img).
+- `firmware(arch)` — returns a namespace with `opensbi`, `uboot`, and `kernel` factory functions. Common parameters: `src`, `args`, `prebuild`, `postbuild`, `install`, `build_after`, `build_before`, `install_after`, `install_before`. Additionally, `uboot` and `kernel` accept `defconfig`.
+
+Import API types from `hox` and action constructors from `actions`:
+
+```python
+from hox import Board, ConfigContext, Module
+from actions import make
+```
+
+Board configs load the selected adapter with `ctx.adapter`.
+
+## Actions
+
+Each action module exports an `Action` class, and `actions/__init__.py` re-exports common constructors for config use: `from actions import git, make, cp, patch, shell`. `BaseAction.use` is derived from the module name.
 
 ## Debugging
 
-Print the final JSON config produced after Jsonnet evaluation, without running build or image stages:
+Print the final config without running builds or image generation:
 
 ```sh
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
 ```
 
-Open a debug shell before matching actions:
+Pause before matched module build actions and open an interactive shell:
 
 ```sh
-python main.py -b <board> -a <adapter> --debug <target[:index]>
+python main.py -b <board> -a <adapter> --debug <pattern>
 ```
 
-Patterns:
+Effects of `--debug`:
+
+- Prints the final config after Python DSL evaluation and Pydantic validation.
+- When a matched build action is reached, opens a shell in `build/<board>/<module>/` with environment variables from module `env` and any `.env` file. Execution continues after exiting the shell.
+- When any module is matched, the build stage runs modules sequentially instead of concurrently, making debugging easier.
+
+`<pattern>` format is `MODULE[:INDEX][,...]`, matching multiple positions at once:
 
 | Pattern | Meaning |
 | --- | --- |
-| `*` | All targets and actions |
-| `kernel` | All actions in `kernel` |
-| `kernel:0` | First action in `kernel` |
-| `*:1` | Second action in every target |
+| `*` | All build actions in all modules |
+| `kernel` | All build actions in the `kernel` module |
+| `kernel:0` | First build action in the `kernel` module |
+| `*:1` | Second build action in every module |
+| `opensbi:0,kernel:0` | First build action in `opensbi` and first build action in `kernel` |
 
-Action indexes are zero-based.
-
-## Validation
-
-Useful checks after changing SDK configs:
-
-```sh
-python main.py --help
-
-# check the final JSON config produced from `boards/<board>/config.jsonnet`.
-python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
-```
+When no value is given, the default pattern is `*`. Build action indexes are zero-based.

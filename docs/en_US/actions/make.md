@@ -1,18 +1,18 @@
 # `make`
 
-Run `make` in the current target working directory.
+Run `make` in the current module working directory.
 
 ## Example
 
-```jsonnet
-{ use: 'make', args: 'defconfig' }
+```python
+make(args="defconfig")
 ```
 
 ## Fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `args` | `string` | No | Argument string appended after `make` |
+| `args` | `str` | No | Argument string appended after `make` |
 
 ## Rules
 

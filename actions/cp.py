@@ -5,8 +5,8 @@ from actions.base import BaseAction
 
 
 class Action(BaseAction):
-    src: str
-    dest: str
+    src: Path
+    dest: Path
 
     async def run(self, cwd: Path, env: dict[str, str]) -> None:
         src = cwd / self.src

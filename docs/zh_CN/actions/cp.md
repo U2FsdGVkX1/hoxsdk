@@ -1,19 +1,19 @@
 # `cp`
 
-将文件或目录复制到目标位置
+将文件或目录复制到目标位置。
 
 ## 示例
 
-```jsonnet
-{ use: 'cp', src: BDIR + '/kernel.config', dest: '.config' }
+```python
+cp(src=ctx.BOARD_DIR / "kernel.config", dest=Path(".config"))
 ```
 
 ## 字段
 
 | 字段 | 类型 | 必选 | 说明 |
 | --- | --- | --- | --- |
-| `src` | `string` | 是 | 源路径，可使用绝对路径；相对路径相对于当前 target 工作目录 |
-| `dest` | `string` | 是 | 目标路径，可使用绝对路径；相对路径相对于当前 target 工作目录 |
+| `src` | `Path` | 是 | 源路径，可使用绝对路径；相对路径相对于当前 module 工作目录 |
+| `dest` | `Path` | 是 | 目标路径，可使用绝对路径；相对路径相对于当前 module 工作目录 |
 
 ## 规则
 

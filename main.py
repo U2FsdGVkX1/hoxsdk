@@ -1,11 +1,11 @@
 import asyncio
 import argparse
 import json
-import _jsonnet
+import runpy
 from pathlib import Path
 
-from build_manager import BuildManager, DebugConfig
-from image_manager import ImageManager
+from hox import ConfigContext
+from manager import DebugConfig, Manager
 
 
 class Args(argparse.Namespace):
@@ -24,13 +24,13 @@ def parse_debug(value: str) -> list[DebugConfig]:
         if not part:
             continue
 
-        target_name, separator, action_index = part.partition(":")
+        module_name, separator, action_index = part.partition(":")
         if not separator:
             action_index = "*"
         elif not action_index:
             action_index = "*"
 
-        items.append(DebugConfig(target_name, action_index))
+        items.append(DebugConfig(module_name, action_index))
     return items
 
 
@@ -48,9 +48,9 @@ def parse_arguments() -> Args:
         const="*",
         type=str,
         default="",
-        metavar="TARGET[:INDEX][,...]",
+        metavar="MODULE[:INDEX][,...]",
         help=(
-            "Print parsed jsonnet config and pause before matched actions; "
+            "Print parsed config and pause before matched build actions; "
             "default: *"
         ),
     )
@@ -61,49 +61,41 @@ def parse_arguments() -> Args:
 
 
 async def main():
-    # Determine root directory
     root = Path(__file__).resolve().parent
-
-    # Validate directory
     boarddir = (root / "boards" / args.board).resolve()
+    adapterdir = (root / "adapters" / args.adapter).resolve()
     builddir = (root / "build" / args.board).resolve()
     outputdir = (root / "outputs" / args.board).resolve()
     builddir.mkdir(parents=True, exist_ok=True)
     outputdir.mkdir(parents=True, exist_ok=True)
 
-    # Config
-    content = _jsonnet.evaluate_file(
-        str(boarddir / "config.jsonnet"),
-        ext_vars={"BDIR": str(boarddir)},
+    config_ns = runpy.run_path(str(boarddir / "config.py"))
+    config = config_ns["configure"](
+        ConfigContext(
+            BOARD_NAME=boarddir.name,
+            BOARD_DIR=boarddir,
+            ADAPTER_NAME=args.adapter,
+            ADAPTER_DIR=adapterdir,
+        )
     )
-    config = json.loads(content)
+    manager = Manager(
+        config,
+        boarddir,
+        adapterdir,
+        builddir,
+        outputdir,
+        args.debug,
+    )
     if args.debug:
-        print(json.dumps(config, indent=2, ensure_ascii=False))
+        print(manager.config.model_dump(
+            mode="json", by_alias=True, serialize_as_any=True
+        ))
 
-    # build
     if not args.skipbuild:
-        build_manager = BuildManager(
-            config.get("targets", {}),
-            builddir,
-            outputdir,
-            args.debug,
-        )
-        await build_manager.build()
+        await manager.build()
 
-    # image
     if not args.skipimage:
-        adapterdir = (root / "adapters" / args.adapter).resolve()
-        image_manager = ImageManager(
-            config["arch"],
-            args.desktop,
-            config.get("partitions", []),
-            config.get("images", []),
-            boarddir,
-            adapterdir,
-            builddir,
-            outputdir,
-        )
-        await asyncio.create_task(image_manager.generate(), name="_image")
+        await asyncio.create_task(manager.images(), name="_image")
         print(f"[image] Generated outputs in: {outputdir}")
 
 args = parse_arguments()

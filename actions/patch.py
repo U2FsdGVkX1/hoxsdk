@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import Field
@@ -7,7 +8,7 @@ from process import shell
 
 
 class Action(BaseAction):
-    patches: tuple[str, ...] = Field(default_factory=tuple)
+    patches: Sequence[Path] = Field(default_factory=tuple)
     gitam: bool = False
 
     async def run(self, cwd: Path, env: dict[str, str]) -> None:

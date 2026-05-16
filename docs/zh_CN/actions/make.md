@@ -1,18 +1,18 @@
 # `make`
 
-在当前 target 工作目录中执行 `make`
+在当前 module 工作目录中执行 `make`。
 
 ## 示例
 
-```jsonnet
-{ use: 'make', args: 'defconfig' }
+```python
+make(args="defconfig")
 ```
 
 ## 字段
 
 | 字段 | 类型 | 必选 | 说明 |
 | --- | --- | --- | --- |
-| `args` | `string` | 否 | 追加到 `make` 后的参数字符串 |
+| `args` | `str` | 否 | 追加到 `make` 后的参数字符串 |
 
 ## 规则
 

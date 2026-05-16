@@ -1,21 +1,21 @@
 # `git`
 
-将 Git 仓库克隆到当前 target 工作目录
+将 Git 仓库克隆到当前 module 工作目录。
 
 ## 示例
 
-```jsonnet
-{ use: 'git', src: 'https://example.com/repo.git' }
+```python
+git(src="https://example.com/repo.git")
 ```
 
 ## 字段
 
 | 字段 | 类型 | 必选 | 说明 |
 | --- | --- | --- | --- |
-| `src` | `string` | 是 | Git 仓库地址 |
-| `path` | `string` | 否 | 克隆到的目标路径，默认 `.`，相对路径基于当前 target 工作目录 |
-| `branch` | `string` | 否 | 指定分支 |
-| `hash` | `string` | 否 | 指定提交哈希，设置后会在克隆完成后执行 `git checkout` |
+| `src` | `str` | 是 | Git 仓库地址 |
+| `path` | `Path` | 否 | 克隆到的目标路径，默认 `Path(".")`，相对路径基于当前 module 工作目录 |
+| `branch` | `str` | 否 | 指定分支 |
+| `hash` | `str` | 否 | 指定提交哈希，设置后会在克隆完成后执行 `git checkout` |
 
 ## 规则
 

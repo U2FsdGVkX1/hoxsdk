@@ -2,13 +2,12 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 async def shell(
     cmd: str,
-    cwd: Optional[Path] = None,
-    env: Optional[dict[str, str]] = None,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[asyncio.subprocess.Process, bytes, bytes]:
     def _log_file() -> Path:
         import main
@@ -22,7 +21,7 @@ async def shell(
     process = await asyncio.create_subprocess_shell(
         cmd,
         cwd=cwd,
-        env={**os.environ, **({} if env is None else env)},
+        env=os.environ | (env or {}),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         shell=True,

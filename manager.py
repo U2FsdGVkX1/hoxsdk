@@ -1,11 +1,11 @@
 import asyncio
+import math
 import os
 import shutil
 from dataclasses import dataclass
 from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from shlex import quote
-from typing import Any
 
 from hox import Board, ImagePartition, Module
 from process import shell
@@ -79,7 +79,7 @@ class Manager:
             raise FileNotFoundError(f"Partition image not found: {partition_image}")
 
         size = partition_image.stat().st_size
-        return (size + Manager.SECTOR_SIZE - 1) // Manager.SECTOR_SIZE
+        return math.ceil(size / Manager.SECTOR_SIZE)
 
     async def build(self) -> None:
         async def run_build(module: Module) -> None:
@@ -106,7 +106,7 @@ class Manager:
                     process = await asyncio.create_subprocess_exec(
                         os.environ.get("SHELL") or "/bin/bash",
                         cwd=moduledir,
-                        env={**os.environ, **env},
+                        env=os.environ | env,
                     )
                     await process.wait()
                 await action.run(moduledir, env)

@@ -135,7 +135,7 @@ def firmware(arch: str):
         build_after=(),
         build_before=(),
         install_after=("image-rootfs",),
-        install_before=(),
+        install_before=("image-kernel",),
     ):
         return Module(
             name="kernel",

@@ -7,6 +7,8 @@ from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from shlex import quote
 
+from dotenv import dotenv_values
+
 from hox import Board, ImagePartition, Module
 from process import shell
 
@@ -89,16 +91,7 @@ class Manager:
             moduledir.mkdir(parents=True, exist_ok=True)
 
             for index, action in enumerate(module.build):
-                env_file = moduledir / ".env"
-                env_extension = {}
-                if env_file.exists():
-                    for line in env_file.read_text().splitlines():
-                        line = line.strip()
-                        if line and "=" in line:
-                            key, value = line.split("=", 1)
-                            env_extension[key] = value
-
-                env = {**module.env, **env_extension}
+                env = {**module.env, **dotenv_values(moduledir / ".env")}
                 if any(item.matches(module.name, index) for item in self.debug):
                     print(f"[debug] Paused before {module.name}:{index} ({action.use})")
                     print(f"[debug] cwd: {moduledir}")

@@ -23,6 +23,7 @@ python main.py -b <board> -a <adapter>
 Board 配置是 Python DSL 文件，导出 `configure(ctx) -> Board`。`ConfigContext` 主要属性：
 
 - `ctx.adapter` — 加载当前选择的 adapter 模块列表。
+- `ctx.module(name, *args)` — 加载 board 本地模块：执行 `modules/<name>/config.py`，返回其 `configure(ctx, *args)`。
 - `ctx.BOARD_DIR` — board 目录绝对路径；用 `ctx.BOARD_DIR / "file"` 引用 board 本地文件。
 - `ctx.ADAPTER_DIR` — adapter 目录绝对路径；用 `ctx.ADAPTER_DIR / "file"` 引用 adapter 本地文件（主要在 adapter 配置中使用）。
 - `ctx.ADAPTER_NAME` — 当前 adapter 名称字符串。

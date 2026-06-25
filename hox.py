@@ -1,8 +1,8 @@
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
-from importlib import import_module
 from pathlib import Path
+from runpy import run_path
 from typing import Literal
 
 from pydantic import (
@@ -118,4 +118,9 @@ class ConfigContext:
 
     @property
     def adapter(self) -> list[Module]:
-        return list(import_module(f"adapters.{self.ADAPTER_NAME}.config").configure(self))
+        config = run_path(str(self.ADAPTER_DIR / "config.py"))
+        return list(config["configure"](self))
+
+    def module(self, name: str, *args) -> Module:
+        config = run_path(str(self.BOARD_DIR / "modules" / name / "config.py"))
+        return config["configure"](self, *args)

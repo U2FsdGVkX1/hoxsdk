@@ -23,6 +23,7 @@ python main.py -b <board> -a <adapter>
 Board configs are Python DSL files exporting `configure(ctx) -> Board`. Key `ConfigContext` attributes:
 
 - `ctx.adapter` — load the selected adapter's module list.
+- `ctx.module(name, *args)` — load a board-local module: runs `modules/<name>/config.py` and returns its `configure(ctx, *args)`.
 - `ctx.BOARD_DIR` — absolute path to the board directory; use `ctx.BOARD_DIR / "file"` for board-local files.
 - `ctx.ADAPTER_DIR` — absolute path to the adapter directory; use `ctx.ADAPTER_DIR / "file"` for adapter-local files (mainly in adapter configs).
 - `ctx.ADAPTER_NAME` — selected adapter name string.

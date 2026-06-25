@@ -23,10 +23,8 @@ def parse_debug(value: str) -> list[DebugConfig]:
         if not part:
             continue
 
-        module_name, separator, action_index = part.partition(":")
-        if not separator:
-            action_index = "*"
-        elif not action_index:
+        module_name, _, action_index = part.partition(":")
+        if not action_index:
             action_index = "*"
 
         items.append(DebugConfig(module_name, action_index))

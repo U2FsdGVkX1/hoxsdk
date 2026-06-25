@@ -92,6 +92,9 @@ async def main():
         await manager.build()
 
     if not args.skipimage:
+        # process.shell() routes logs by the current task name; naming this
+        # task routes all image-stage output to logs/<board>/_image.log
+        # instead of the module build logs.
         await asyncio.create_task(manager.images(), name="_image")
         print(f"[image] Generated outputs in: {outputdir}")
 

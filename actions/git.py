@@ -13,7 +13,7 @@ class Action(BaseAction):
     commit_hash: str | None = Field(default=None, alias="hash")
 
     async def run(self, cwd: Path, env: dict[str, str]) -> None:
-        cmd = "git clone"
+        cmd = "git clone --progress"
         if not self.commit_hash:
             cmd += " --depth=1"
         if self.branch:

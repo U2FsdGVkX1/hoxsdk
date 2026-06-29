@@ -13,22 +13,14 @@ class Args(argparse.Namespace):
     desktop: str
     skipbuild: bool
     skipimage: bool
-    debug_raw: str
     debug: list[DebugConfig]
 
 
-def parse_debug(value: str) -> list[DebugConfig]:
-    items = []
-    for part in value.split(","):
-        if not part:
-            continue
-
-        module_name, _, action_index = part.partition(":")
-        if not action_index:
-            action_index = "*"
-
-        items.append(DebugConfig(module_name, action_index))
-    return items
+def parse_debug(value: str) -> DebugConfig:
+    module_name, _, action_index = value.partition(":")
+    if not action_index:
+        action_index = "*"
+    return DebugConfig(module_name, action_index)
 
 
 def parse_arguments() -> Args:
@@ -40,21 +32,20 @@ def parse_arguments() -> Args:
     parser.add_argument("--skipimage", action="store_true", help="Skip image stage")
     parser.add_argument(
         "--debug",
-        dest="debug_raw",
+        action="append",
         nargs="?",
         const="*",
-        type=str,
-        default="",
-        metavar="MODULE[:INDEX][,...]",
+        default=[],
+        type=parse_debug,
+        metavar="MODULE[:INDEX]",
         help=(
             "Print parsed config and pause before matched build actions; "
-            "default: *"
+            "default when given without a value: *. Repeatable to combine "
+            "multiple patterns (e.g. --debug 'kernel:*' --debug 'uboot:1')."
         ),
     )
 
-    args = parser.parse_args(namespace=Args())
-    args.debug = parse_debug(args.debug_raw)
-    return args
+    return parser.parse_args(namespace=Args())
 
 
 async def main():

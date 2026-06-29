@@ -41,7 +41,7 @@ python main.py --help                                            # 查看帮助
 | `--desktop` | 否 | `minimal` | 桌面配置名 |
 | `--skipbuild` | 否 | `false` | 跳过构建阶段 |
 | `--skipimage` | 否 | `false` | 跳过镜像阶段 |
-| `--debug [PATTERN]` | 否 | 空，不带值时为 `*` | 输出配置，并在匹配的构建 action 前打开 shell。详见调试 |
+| `--debug [PATTERN]` | 否 | 空，不带值时为 `*` | 输出配置，并在匹配的构建 action 前打开 shell。见调试 |
 
 ## 输出
 
@@ -54,7 +54,11 @@ python main.py --help                                            # 查看帮助
 
 ## 调试
 
-`--debug` 输出 Python DSL 求值后的最终配置，并在匹配的构建 action 执行前暂停，在模块工作目录下打开交互式 shell。
+`--debug` 输出 Python DSL 求值后的最终配置，并在匹配的构建 action 执行前暂停，在模块工作目录下打开交互式 shell。可重复以组合多个模式：
+
+```sh
+python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
+```
 
 `PATTERN` 格式为 `MODULE[:INDEX][,...]`：
 

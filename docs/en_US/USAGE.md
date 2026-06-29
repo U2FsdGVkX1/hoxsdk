@@ -54,7 +54,11 @@ Argument file support: `python main.py @args.txt`
 
 ## Debugging
 
-`--debug` prints the final config after Python DSL evaluation and pauses before matched build actions, opening an interactive shell in the module workdir.
+`--debug` prints the final config after Python DSL evaluation and pauses before matched build actions, opening an interactive shell in the module workdir. Repeat it to combine multiple patterns:
+
+```sh
+python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
+```
 
 `PATTERN` format is `MODULE[:INDEX][,...]`:
 

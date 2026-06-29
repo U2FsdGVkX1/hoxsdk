@@ -195,4 +195,10 @@ Effects of `--debug`:
 | `*:1` | Second build action in every module |
 | `opensbi:0,kernel:0` | First build action in `opensbi` and first build action in `kernel` |
 
+`--debug` is repeatable to combine patterns:
+
+```sh
+python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
+```
+
 When no value is given, the default pattern is `*`. Build action indexes are zero-based.

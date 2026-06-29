@@ -195,4 +195,10 @@ python main.py -b <board> -a <adapter> --debug <pattern>
 | `*:1` | 每个模块的第 2 个构建 action |
 | `opensbi:0,kernel:0` | `opensbi` 的第 1 个和 `kernel` 的第 1 个构建 action |
 
+`--debug` 可重复以组合多个模式：
+
+```sh
+python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
+```
+
 不传值时默认匹配 `*`。构建 action 索引从 0 开始。

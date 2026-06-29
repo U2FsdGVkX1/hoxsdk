@@ -1,6 +1,6 @@
 import shutil
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from runpy import run_path
 from typing import Literal
@@ -115,6 +115,12 @@ class ConfigContext:
     BOARD_DIR: Path
     ADAPTER_NAME: str
     ADAPTER_DIR: Path
+    PARAMS: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def params(self) -> dict[str, str]:
+        """Parameters set via the `-p KEY=VALUE` CLI option."""
+        return self.PARAMS
 
     @property
     def adapter(self) -> list[Module]:

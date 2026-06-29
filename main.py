@@ -14,6 +14,8 @@ class Args(argparse.Namespace):
     skipbuild: bool
     skipimage: bool
     debug: list[DebugConfig]
+    params_raw: list[tuple[str, str]]
+    params: dict[str, str]
 
 
 def parse_debug(value: str) -> DebugConfig:
@@ -21,6 +23,11 @@ def parse_debug(value: str) -> DebugConfig:
     if not action_index:
         action_index = "*"
     return DebugConfig(module_name, action_index)
+
+
+def parse_param(value: str) -> tuple[str, str]:
+    key, sep, val = value.partition(":")
+    return key, val if sep else "true"
 
 
 def parse_arguments() -> Args:
@@ -44,8 +51,24 @@ def parse_arguments() -> Args:
             "multiple patterns (e.g. --debug 'kernel:*' --debug 'uboot:1')."
         ),
     )
+    parser.add_argument(
+        "-p",
+        "--param",
+        dest="params_raw",
+        action="append",
+        default=[],
+        metavar="KEY[:VALUE]",
+        type=parse_param,
+        help=(
+            "Set a parameter as KEY:VALUE (or just KEY as shorthand for "
+            "KEY:true). Parameters are available to the build and image "
+            "stages; repeatable."
+        ),
+    )
 
-    return parser.parse_args(namespace=Args())
+    args = parser.parse_args(namespace=Args())
+    args.params = dict(args.params_raw)
+    return args
 
 
 async def main():
@@ -64,6 +87,7 @@ async def main():
             BOARD_DIR=boarddir,
             ADAPTER_NAME=args.adapter,
             ADAPTER_DIR=adapterdir,
+            PARAMS=args.params,
         )
     )
     manager = Manager(
@@ -73,6 +97,7 @@ async def main():
         builddir,
         outputdir,
         args.debug,
+        args.params,
     )
     if args.debug:
         print(manager.config.model_dump(

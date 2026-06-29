@@ -26,11 +26,21 @@ Module `requires` may declare additional tools (e.g. `git`, `patch`, `make`, or 
 python main.py -b <board> -a <adapter>                          # build and package
 python main.py -b <board> -a <adapter> --skipimage             # build stage only
 python main.py -b <board> -a <adapter> --skipbuild              # image stage only
+python main.py -b <board> -a <adapter> -p KEY:VALUE             # pass a parameter
+python main.py -b <board> -a <adapter> -p KEY                  # shorthand: KEY=true
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug  # config only
 python main.py --help                                            # show help
 ```
 
 Argument file support: `python main.py @args.txt`
+
+## Parameters
+
+`-p`/`--param KEY[:VALUE]` sets a parameter that is readable in the config DSL via `ctx.params["KEY"]` and exported as the environment variable `$KEY` in build actions and install snippets (overriding module `env` and `.env`). `KEY` alone is shorthand for `KEY:true`; only the first `:` splits, so values may contain `:`.
+
+```sh
+python main.py -b <board> -a <adapter> -p BRANCH:main -p DEBUG:1 -p VERBOSE
+```
 
 ## Arguments
 
@@ -41,6 +51,7 @@ Argument file support: `python main.py @args.txt`
 | `--desktop` | No | `minimal` | Desktop profile name |
 | `--skipbuild` | No | `false` | Skip the build stage |
 | `--skipimage` | No | `false` | Skip the image stage |
+| `-p`, `--param KEY[:VALUE]` | No | None | Set a parameter; see Parameters |
 | `--debug [PATTERN]` | No | Empty; `*` when used without a value | Print config and open a shell before matching build actions. See Debugging |
 
 ## Outputs

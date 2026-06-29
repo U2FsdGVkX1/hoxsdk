@@ -24,6 +24,7 @@ Board 配置是 Python DSL 文件，导出 `configure(ctx) -> Board`。`ConfigCo
 
 - `ctx.adapter` — 加载当前选择的 adapter 模块列表。
 - `ctx.module(name, *args)` — 加载 board 本地模块：执行 `modules/<name>/config.py`，返回其 `configure(ctx, *args)`。
+- `ctx.params` — 通过 `-p KEY=VALUE` CLI 选项设置的参数映射；用 `ctx.params["KEY"]` 或 `ctx.params.get("KEY", default)` 读取。
 - `ctx.BOARD_DIR` — board 目录绝对路径；用 `ctx.BOARD_DIR / "file"` 引用 board 本地文件。
 - `ctx.ADAPTER_DIR` — adapter 目录绝对路径；用 `ctx.ADAPTER_DIR / "file"` 引用 adapter 本地文件（主要在 adapter 配置中使用）。
 - `ctx.ADAPTER_NAME` — 当前 adapter 名称字符串。
@@ -143,6 +144,26 @@ Module(
 | `BUILD_DIR` | `build/<board>/` 的绝对路径 |
 | `OUTPUT_DIR` | `outputs/<board>/` 的绝对路径 |
 | `ARCH` | `config.py` 中的 `arch` 值 |
+
+## 参数（Parameters）
+
+通过 `-p KEY:VALUE` 设置参数，在两处可用：
+
+- **配置 DSL**：在 `configure(ctx)` 中用 `ctx.params["KEY"]` / `ctx.params.get("KEY", default)` 读取。适合在配置阶段选择分支、defconfig 或切换行为：
+
+```python
+def configure(ctx: ConfigContext) -> Board:
+    branch = ctx.params.get("KERNEL_BRANCH", "main")
+    ...
+```
+
+- **构建与安装阶段**：每个 `KEY` 在构建 action 和镜像阶段 install 片段中作为环境变量 `$KEY` 导出，优先级高于模块的 `env` 和 `.env` 值。
+
+`-p KEY`（不带值）是 `-p KEY:true` 的简写；仅以第一个 `:` 分割，因此 value 可以包含 `:`。
+
+```sh
+python main.py -b <board> -a <adapter> -p KERNEL_BRANCH:v6.1 -p DEBUG:1 -p VERBOSE
+```
 
 ## 通用辅助项
 

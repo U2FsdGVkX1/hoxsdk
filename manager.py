@@ -36,6 +36,7 @@ class Manager:
         builddir: Path,
         outputdir: Path,
         debug: list[DebugConfig] | None = None,
+        params: dict[str, str] | None = None,
     ):
         self.config = config
         self.boarddir = boarddir.resolve()
@@ -43,6 +44,7 @@ class Manager:
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
         self.debug = tuple(debug or [])
+        self.params = dict(params or {})
 
     @staticmethod
     def _dependency_groups(modules: list[Module], after_attr: str) -> list[list[Module]]:
@@ -177,6 +179,7 @@ class Manager:
             "BUILD_DIR": str(self.builddir),
             "OUTPUT_DIR": str(self.outputdir),
             "ARCH": self.config.arch,
+            **self.params,
         }
 
         mounted: dict[Path, Path] = {}

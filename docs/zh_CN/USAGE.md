@@ -26,11 +26,21 @@ Python 依赖：`pydantic`（需要 Python 3.10+）。
 python main.py -b <board> -a <adapter>                          # 构建并打包
 python main.py -b <board> -a <adapter> --skipimage             # 只运行构建阶段
 python main.py -b <board> -a <adapter> --skipbuild              # 只运行镜像阶段
+python main.py -b <board> -a <adapter> -p KEY:VALUE             # 传入参数
+python main.py -b <board> -a <adapter> -p KEY                  # 简写：KEY=true
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug  # 只输出配置
 python main.py --help                                            # 查看帮助
 ```
 
 参数文件支持：`python main.py @args.txt`
+
+## 参数（Parameters）
+
+`-p`/`--param KEY[:VALUE]` 设置一个参数：可在配置 DSL 中用 `ctx.params["KEY"]` 读取，并作为环境变量 `$KEY` 导出到构建 action 和 install 片段中（覆盖模块的 `env` 和 `.env`）。只给 `KEY` 是 `KEY:true` 的简写；仅以第一个 `:` 分割，因此值可含 `:`。
+
+```sh
+python main.py -b <board> -a <adapter> -p BRANCH:main -p DEBUG:1 -p VERBOSE
+```
 
 ## 参数
 
@@ -41,6 +51,7 @@ python main.py --help                                            # 查看帮助
 | `--desktop` | 否 | `minimal` | 桌面配置名 |
 | `--skipbuild` | 否 | `false` | 跳过构建阶段 |
 | `--skipimage` | 否 | `false` | 跳过镜像阶段 |
+| `-p`, `--param KEY[:VALUE]` | 否 | 无 | 设置参数；见参数 |
 | `--debug [PATTERN]` | 否 | 空，不带值时为 `*` | 输出配置，并在匹配的构建 action 前打开 shell。见调试 |
 
 ## 输出

@@ -14,7 +14,6 @@ make(args="defconfig")
 | --- | --- | --- | --- |
 | `args` | `str` | 否 | 追加到 `make` 后的参数字符串 |
 
-## 规则
+## 注意
 
-- 实际执行形式为 `make -j$(cpu_count) <args>`
-- 未设置 `args` 时，等价于直接执行并行 `make`
+- 实际执行形式为 `make -j$(cpu_count) <args>`。

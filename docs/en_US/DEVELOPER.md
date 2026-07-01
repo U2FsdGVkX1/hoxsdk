@@ -24,7 +24,7 @@ Board configs are Python DSL files exporting `configure(ctx) -> Board`. Key `Con
 
 - `ctx.adapter` — load the selected adapter's module list.
 - `ctx.module(name, *args)` — load a board-local module: runs `modules/<name>/config.py` and returns its `configure(ctx, *args)`.
-- `ctx.params` — mapping of parameters set via the `-p KEY=VALUE` CLI option; use `ctx.params["KEY"]` or `ctx.params.get("KEY", default)`.
+- `ctx.params` — mapping of parameters set via the `-p KEY:VALUE` CLI option; use `ctx.params["KEY"]` to read values.
 - `ctx.BOARD_DIR` — absolute path to the board directory; use `ctx.BOARD_DIR / "file"` for board-local files.
 - `ctx.ADAPTER_DIR` — absolute path to the adapter directory; use `ctx.ADAPTER_DIR / "file"` for adapter-local files (mainly in adapter configs).
 - `ctx.ADAPTER_NAME` — selected adapter name string.
@@ -145,26 +145,6 @@ All snippets run in one shell session in topological order determined by `instal
 | `OUTPUT_DIR` | Absolute path to `outputs/<board>/` |
 | `ARCH` | Board architecture from `config.py` |
 
-## Parameters
-
-Pass `-p KEY:VALUE` to set parameters consumed in two places:
-
-- **Config DSL**: read via `ctx.params["KEY"]` / `ctx.params.get("KEY", default)` in `configure(ctx)`. Useful for choosing a branch, defconfig, or toggling behavior at config time:
-
-```python
-def configure(ctx: ConfigContext) -> Board:
-    branch = ctx.params.get("KERNEL_BRANCH", "main")
-    ...
-```
-
-- **Build and install stages**: each `KEY` is exported as the environment variable `$KEY` during build actions and image-stage install snippets, taking precedence over module `env` and `.env` values.
-
-`-p KEY` (no value) is shorthand for `-p KEY:true`; only the first `:` splits, so values may contain `:`.
-
-```sh
-python main.py -b <board> -a <adapter> -p KERNEL_BRANCH:v6.1 -p DEBUG:1 -p VERBOSE
-```
-
 ## Shared Helpers
 
 `boards/common.py` provides shared defaults and firmware templates:
@@ -206,15 +186,13 @@ Effects of `--debug`:
 - When a matched build action is reached, opens a shell in `build/<board>/<module>/` with environment variables from module `env` and any `.env` file. Execution continues after exiting the shell.
 - When any module is matched, the build stage runs modules sequentially instead of concurrently, making debugging easier.
 
-`<pattern>` format is `MODULE[:INDEX][,...]`, matching multiple positions at once:
+`<pattern>` format is `MODULE[:INDEX]`:
 
 | Pattern | Meaning |
 | --- | --- |
 | `*` | All build actions in all modules |
 | `kernel` | All build actions in the `kernel` module |
 | `kernel:0` | First build action in the `kernel` module |
-| `*:1` | Second build action in every module |
-| `opensbi:0,kernel:0` | First build action in `opensbi` and first build action in `kernel` |
 
 `--debug` is repeatable to combine patterns:
 
@@ -222,4 +200,4 @@ Effects of `--debug`:
 python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
 ```
 
-When no value is given, the default pattern is `*`. Build action indexes are zero-based.
+Build action indexes are zero-based.

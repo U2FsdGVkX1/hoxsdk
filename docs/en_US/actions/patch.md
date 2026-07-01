@@ -15,8 +15,6 @@ patch(patches=[ctx.BOARD_DIR / "fix.patch"])
 | `patches` | `Sequence[Path]` | No | List of patch files. Paths may be absolute or relative to the current module working directory |
 | `gitam` | `bool` | No | When `true`, use `git am`; otherwise use `patch -p1` |
 
-## Rules
+## Notes
 
-- Patches in `patches` are applied in order
-- The default command is `patch -p1 < <patch>`
-- When `gitam=true`, the command becomes `git am <patch>` and the current working directory must be a Git repository
+- Patches are applied in order with `patch -p1`; `gitam=true` uses `git am`.

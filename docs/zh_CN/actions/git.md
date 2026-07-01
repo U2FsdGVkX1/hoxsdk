@@ -17,8 +17,6 @@ git(src="https://example.com/repo.git")
 | `branch` | `str` | 否 | 指定分支 |
 | `hash` | `str` | 否 | 指定提交哈希，设置后会在克隆完成后执行 `git checkout` |
 
-## 规则
+## 注意
 
-- 未设置 `hash` 时使用 `git clone --depth=1`
-- 设置 `branch` 时会附加 `-b <branch>`
-- 设置 `hash` 时不使用浅克隆，并在目标目录执行 `git checkout <hash>`
+- 未设置 `hash` 时使用 `--depth=1`；设置 `hash` 时完整克隆，并在克隆后执行 checkout。

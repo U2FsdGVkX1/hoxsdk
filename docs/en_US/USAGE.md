@@ -14,7 +14,7 @@ The build stage runs module `build` actions in `build/<board>/<module>/`. The im
 
 ## Requirements
 
-Python dependency: `pydantic` (requires Python 3.10+).
+Python dependencies: `pydantic` and `python-dotenv` (requires Python 3.10+).
 
 Common host tools for image generation: `sfdisk`, `dd`, `sudo`, `bash`, `mount`, `umount`.
 
@@ -27,32 +27,28 @@ python main.py -b <board> -a <adapter>                          # build and pack
 python main.py -b <board> -a <adapter> --skipimage             # build stage only
 python main.py -b <board> -a <adapter> --skipbuild              # image stage only
 python main.py -b <board> -a <adapter> -p KEY:VALUE             # pass a parameter
-python main.py -b <board> -a <adapter> -p KEY                  # shorthand: KEY=true
+python main.py -b <board> -a <adapter> -p KEY                  # set KEY=true
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug  # config only
 python main.py --help                                            # show help
 ```
 
 Argument file support: `python main.py @args.txt`
 
-## Parameters
+## Build Parameters
 
-`-p`/`--param KEY[:VALUE]` sets a parameter that is readable in the config DSL via `ctx.params["KEY"]` and exported as the environment variable `$KEY` in build actions and install snippets (overriding module `env` and `.env`). `KEY` alone is shorthand for `KEY:true`; only the first `:` splits, so values may contain `:`.
+`-p`/`--param KEY[:VALUE]` sets a parameter that is readable in the config DSL via `ctx.params["KEY"]` and exported as the environment variable `$KEY` in image-stage install snippets.
 
-```sh
-python main.py -b <board> -a <adapter> -p BRANCH:main -p DEBUG:1 -p VERBOSE
-```
+## Options
 
-## Arguments
-
-| Argument | Required | Default | Description |
+| Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `-b`, `--board` | Yes | None | Board path relative to `boards/` |
 | `-a`, `--adapter` | Yes | None | Adapter directory name under `adapters/` |
 | `--desktop` | No | `minimal` | Desktop profile name |
 | `--skipbuild` | No | `false` | Skip the build stage |
 | `--skipimage` | No | `false` | Skip the image stage |
-| `-p`, `--param KEY[:VALUE]` | No | None | Set a parameter; see Parameters |
-| `--debug [PATTERN]` | No | Empty; `*` when used without a value | Print config and open a shell before matching build actions. See Debugging |
+| `-p`, `--param KEY[:VALUE]` | No | None | Set a parameter; see Build Parameters |
+| `--debug [PATTERN]` | No | Empty | Print config and open a shell before matching build actions. See Debugging |
 
 ## Outputs
 
@@ -65,19 +61,8 @@ python main.py -b <board> -a <adapter> -p BRANCH:main -p DEBUG:1 -p VERBOSE
 
 ## Debugging
 
-`--debug` prints the final config after Python DSL evaluation and pauses before matched build actions, opening an interactive shell in the module workdir. Repeat it to combine multiple patterns:
+`--debug` prints the final config and opens a shell before matched build actions.
 
 ```sh
 python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
 ```
-
-`PATTERN` format is `MODULE[:INDEX][,...]`:
-
-| Pattern | Meaning |
-| --- | --- |
-| `*` | All build actions in all modules |
-| `kernel` | All build actions in the `kernel` module |
-| `kernel:0` | First build action in the `kernel` module |
-| `opensbi:0,kernel:0` | Multiple match positions |
-
-Build action indexes are zero-based. When any module is matched, the build stage runs sequentially instead of concurrently.

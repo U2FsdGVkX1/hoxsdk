@@ -17,8 +17,6 @@ git(src="https://example.com/repo.git")
 | `branch` | `str` | No | Branch to clone |
 | `hash` | `str` | No | Commit hash to check out after cloning |
 
-## Rules
+## Notes
 
-- If `hash` is not set, `git clone --depth=1` is used
-- If `branch` is set, `-b <branch>` is appended
-- If `hash` is set, shallow clone is not used and `git checkout <hash>` runs in the destination directory after cloning
+- Without `hash`, clone uses `--depth=1`; with `hash`, clone is full and checkout runs after cloning.

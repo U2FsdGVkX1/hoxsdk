@@ -10,7 +10,7 @@ from shlex import quote
 from dotenv import dotenv_values
 
 from hox import Board, ImagePartition, Module
-from process import shell
+from process import command_log, shell
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class Manager:
         adapterdir: Path,
         builddir: Path,
         outputdir: Path,
+        logdir: Path,
         debug: list[DebugConfig] | None = None,
         params: dict[str, str] | None = None,
     ):
@@ -43,6 +44,7 @@ class Manager:
         self.adapterdir = adapterdir.resolve()
         self.builddir = builddir.resolve()
         self.outputdir = outputdir.resolve()
+        self.logdir = logdir.resolve()
         self.debug = tuple(debug or [])
         self.params = dict(params or {})
 
@@ -92,19 +94,20 @@ class Manager:
                 shutil.rmtree(moduledir)
             moduledir.mkdir(parents=True, exist_ok=True)
 
-            for index, action in enumerate(module.build):
-                env = {**module.env, **dotenv_values(moduledir / ".env")}
-                if any(item.matches(module.name, index) for item in self.debug):
-                    print(f"[debug] Paused before {module.name}:{index} ({action.use})")
-                    print(f"[debug] cwd: {moduledir}")
-                    print("[debug] Exit the shell to continue")
-                    process = await asyncio.create_subprocess_exec(
-                        os.environ.get("SHELL") or "/bin/bash",
-                        cwd=moduledir,
-                        env=os.environ | env,
-                    )
-                    await process.wait()
-                await action.run(moduledir, env)
+            with command_log(self.logdir / f"{module.name}.log"):
+                for index, action in enumerate(module.build):
+                    env = {**module.env, **dotenv_values(moduledir / ".env")}
+                    if any(item.matches(module.name, index) for item in self.debug):
+                        print(f"[debug] Paused before {module.name}:{index} ({action.use})")
+                        print(f"[debug] cwd: {moduledir}")
+                        print("[debug] Exit the shell to continue")
+                        process = await asyncio.create_subprocess_exec(
+                            os.environ.get("SHELL") or "/bin/bash",
+                            cwd=moduledir,
+                            env=os.environ | env,
+                        )
+                        await process.wait()
+                    await action.run(moduledir, env)
 
         modules = [module for module in self.config.modules if module.build]
         for group in self._dependency_groups(modules, "build_after"):
@@ -112,10 +115,7 @@ class Manager:
                 for module in group:
                     await run_build(module)
             else:
-                await asyncio.gather(*(
-                    asyncio.create_task(run_build(module), name=module.name)
-                    for module in group
-                ))
+                await asyncio.gather(*(run_build(module) for module in group))
 
     async def _write_images(self, workdir: Path) -> None:
         for image in self.config.images:
@@ -163,67 +163,70 @@ class Manager:
                 )
 
     async def images(self) -> None:
-        for tool in ("sfdisk", "dd"):
-            if not shutil.which(tool):
-                raise EnvironmentError(f"Required tool '{tool}' not found in PATH")
+        with command_log(self.logdir / "_image.log"):
+            for tool in ("sfdisk", "dd"):
+                if not shutil.which(tool):
+                    raise EnvironmentError(f"Required tool '{tool}' not found in PATH")
 
-        workdir = (self.builddir / "_image").resolve()
-        rootfs = (workdir / "rootfs").resolve()
-        rootfs.mkdir(parents=True, exist_ok=True)
-        env = {
-            "ROOTFS": str(rootfs),
-            "BOARD_NAME": self.boarddir.name,
-            "BOARD_DIR": str(self.boarddir),
-            "ADAPTER_NAME": self.adapterdir.name,
-            "ADAPTER_DIR": str(self.adapterdir),
-            "BUILD_DIR": str(self.builddir),
-            "OUTPUT_DIR": str(self.outputdir),
-            "ARCH": self.config.arch,
-            **self.params,
-        }
+            workdir = (self.builddir / "_image").resolve()
+            rootfs = (workdir / "rootfs").resolve()
+            rootfs.mkdir(parents=True, exist_ok=True)
+            env = {
+                "ROOTFS": str(rootfs),
+                "BOARD_NAME": self.boarddir.name,
+                "BOARD_DIR": str(self.boarddir),
+                "ADAPTER_NAME": self.adapterdir.name,
+                "ADAPTER_DIR": str(self.adapterdir),
+                "BUILD_DIR": str(self.builddir),
+                "OUTPUT_DIR": str(self.outputdir),
+                "ARCH": self.config.arch,
+                **self.params,
+            }
 
-        mounted: dict[Path, Path] = {}
-        for partition in self.config.partitions:
-            partition_image = (workdir / partition.name).resolve()
-            partition_mountpoint = (rootfs / partition.mountpoint.lstrip("/")).resolve()
+            mounted: dict[Path, Path] = {}
+            for partition in self.config.partitions:
+                partition_image = (workdir / partition.name).resolve()
+                partition_mountpoint = (
+                    rootfs / partition.mountpoint.lstrip("/")
+                ).resolve()
 
-            with partition_image.open("wb") as file:
-                file.truncate(partition.size * self.SECTOR_SIZE)
-            await shell(f"{partition.mkfs} {quote(str(partition_image))}")
-            mounted[partition_image] = partition_mountpoint
+                with partition_image.open("wb") as file:
+                    file.truncate(partition.size * self.SECTOR_SIZE)
+                await shell(f"{partition.mkfs} {quote(str(partition_image))}")
+                mounted[partition_image] = partition_mountpoint
 
-        try:
-            for partition_image, partition_mountpoint in mounted.items():
-                assert str(partition_mountpoint) != "/"
-                await shell(f"sudo -E rm -rf {quote(str(partition_mountpoint))}")
-                await shell(f"sudo -E mkdir -p {quote(str(partition_mountpoint))}")
-                await shell(
-                    f"sudo -E mount -o loop "
-                    f"{quote(str(partition_image))} "
-                    f"{quote(str(partition_mountpoint))}"
-                )
-
-            scripts = ["set -euo pipefail"]
-            modules = [module for module in self.config.modules if module.install]
-            for group in self._dependency_groups(modules, "install_after"):
-                for module in group:
-                    scripts.append(
-                        f"export MODULE_DIR={quote(str(self.builddir / module.name))}"
+            try:
+                for partition_image, partition_mountpoint in mounted.items():
+                    assert str(partition_mountpoint) != "/"
+                    await shell(f"sudo -E rm -rf {quote(str(partition_mountpoint))}")
+                    await shell(f"sudo -E mkdir -p {quote(str(partition_mountpoint))}")
+                    await shell(
+                        f"sudo -E mount -o loop "
+                        f"{quote(str(partition_image))} "
+                        f"{quote(str(partition_mountpoint))}"
                     )
-                    for item in module.install:
-                        if isinstance(item, Path):
-                            scripts.append(f"source {quote(str(item))}")
-                        else:
-                            scripts.append(item)
 
-            scripts_path = workdir / "install.sh"
-            scripts_path.write_text("\n".join(scripts))
-            await shell(
-                f"sudo -E bash {quote(str(scripts_path))}", cwd=rootfs, env=env
-            )
-        finally:
-            await shell(
-                f"grep {quote(str(rootfs))} /proc/mounts | "
-                "cut -d' ' -f2 | sort -r | xargs -r sudo -E umount"
-            )
-        await self._write_images(workdir)
+                scripts = ["set -euo pipefail"]
+                modules = [module for module in self.config.modules if module.install]
+                for group in self._dependency_groups(modules, "install_after"):
+                    for module in group:
+                        scripts.append(
+                            f"export MODULE_DIR={quote(str(self.builddir / module.name))}"
+                        )
+                        for item in module.install:
+                            if isinstance(item, Path):
+                                scripts.append(f"source {quote(str(item))}")
+                            else:
+                                scripts.append(item)
+
+                scripts_path = workdir / "install.sh"
+                scripts_path.write_text("\n".join(scripts))
+                await shell(
+                    f"sudo -E bash {quote(str(scripts_path))}", cwd=rootfs, env=env
+                )
+            finally:
+                await shell(
+                    f"grep {quote(str(rootfs))} /proc/mounts | "
+                    "cut -d' ' -f2 | sort -r | xargs -r sudo -E umount"
+                )
+            await self._write_images(workdir)

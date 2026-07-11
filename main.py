@@ -71,12 +71,13 @@ def parse_arguments() -> Args:
     return args
 
 
-async def main():
+async def main(args: Args) -> None:
     root = Path(__file__).resolve().parent
     boarddir = (root / "boards" / args.board).resolve()
     adapterdir = (root / "adapters" / args.adapter).resolve()
     builddir = (root / "build" / args.board).resolve()
     outputdir = (root / "outputs" / args.board).resolve()
+    logdir = (root / "logs" / args.board).resolve()
     builddir.mkdir(parents=True, exist_ok=True)
     outputdir.mkdir(parents=True, exist_ok=True)
 
@@ -91,13 +92,14 @@ async def main():
         )
     )
     manager = Manager(
-        config,
-        boarddir,
-        adapterdir,
-        builddir,
-        outputdir,
-        args.debug,
-        args.params,
+        config=config,
+        boarddir=boarddir,
+        adapterdir=adapterdir,
+        builddir=builddir,
+        outputdir=outputdir,
+        logdir=logdir,
+        debug=args.debug,
+        params=args.params,
     )
     if args.debug:
         print(manager.config.model_dump(
@@ -108,12 +110,9 @@ async def main():
         await manager.build()
 
     if not args.skipimage:
-        # process.shell() routes logs by the current task name; naming this
-        # task routes all image-stage output to logs/<board>/_image.log
-        # instead of the module build logs.
-        await asyncio.create_task(manager.images(), name="_image")
+        await manager.images()
         print(f"[image] Generated outputs in: {outputdir}")
 
-args = parse_arguments()
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(parse_arguments()))

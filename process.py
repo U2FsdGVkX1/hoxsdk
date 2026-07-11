@@ -1,7 +1,22 @@
 import asyncio
 import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
+
+
+_command_log: ContextVar[Path | None] = ContextVar("command_log", default=None)
+
+
+@contextmanager
+def command_log(path: Path) -> Iterator[None]:
+    token = _command_log.set(path.resolve())
+    try:
+        yield
+    finally:
+        _command_log.reset(token)
 
 
 async def shell(
@@ -9,14 +24,10 @@ async def shell(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
 ) -> tuple[asyncio.subprocess.Process, bytes, bytes]:
-    def _log_file() -> Path:
-        import main
-
-        task = asyncio.current_task()
-        task_name = task.get_name() if task else "main"
-        log_file = Path("logs") / main.args.board / f"{task_name}.log"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        return log_file
+    log_file = _command_log.get()
+    if log_file is None:
+        raise RuntimeError("Command log context is not configured")
+    log_file.parent.mkdir(parents=True, exist_ok=True)
 
     process = await asyncio.create_subprocess_shell(
         cmd,
@@ -27,7 +38,7 @@ async def shell(
         shell=True,
     )
 
-    with _log_file().open("ab") as log:
+    with log_file.open("ab") as log:
         log.write(f"$ {cmd}\n".encode())
 
         async def _pump(stream, out) -> bytes:

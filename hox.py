@@ -16,6 +16,56 @@ from pydantic import (
 from actions.base import BaseAction
 
 
+class Module(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(pattern=r"^[A-Za-z0-9_.-]+$")
+    build_after: Sequence[str] = Field(default_factory=tuple)
+    build_before: Sequence[str] = Field(default_factory=tuple)
+    install_after: Sequence[str] = Field(default_factory=tuple)
+    install_before: Sequence[str] = Field(default_factory=tuple)
+    requires: Sequence[str] = Field(default_factory=tuple)
+    env: dict[str, str] = Field(default_factory=dict)
+    build: Sequence[SerializeAsAny[BaseAction]] = Field(default_factory=tuple)
+    install: Sequence[str | Path] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def validate_requires(self) -> "Module":
+        for require in self.requires:
+            if not shutil.which(require):
+                raise ValueError(
+                    f"Required tool '{require}' for module '{self.name}' not found in PATH"
+                )
+        return self
+
+
+class Partition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    size: int = Field(gt=0)
+    mountpoint: str = Field(min_length=1)
+    mkfs: str = Field(min_length=1)
+
+
+class ImagePartition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    start: int = Field(ge=0)
+    size: int | None = Field(default=None, gt=0)
+    type: str | None = None
+    bootable: bool = False
+
+
+class Image(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    table: Literal["gpt", "dos"] = "gpt"
+    partitions: Sequence[ImagePartition]
+
+
 class Board(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -57,56 +107,6 @@ class Board(BaseModel):
                         )
 
         return self
-
-
-class Module(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str = Field(pattern=r"^[A-Za-z0-9_.-]+$")
-    build_after: Sequence[str] = Field(default_factory=tuple)
-    build_before: Sequence[str] = Field(default_factory=tuple)
-    install_after: Sequence[str] = Field(default_factory=tuple)
-    install_before: Sequence[str] = Field(default_factory=tuple)
-    requires: Sequence[str] = Field(default_factory=tuple)
-    env: dict[str, str] = Field(default_factory=dict)
-    build: Sequence[SerializeAsAny[BaseAction]] = Field(default_factory=tuple)
-    install: Sequence[str | Path] = Field(default_factory=tuple)
-
-    @model_validator(mode="after")
-    def validate_requires(self) -> "Module":
-        for require in self.requires:
-            if not shutil.which(require):
-                raise ValueError(
-                    f"Required tool '{require}' for module '{self.name}' not found in PATH"
-                )
-        return self
-
-
-class Partition(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str
-    size: int = Field(gt=0)
-    mountpoint: str = Field(min_length=1)
-    mkfs: str = Field(min_length=1)
-
-
-class Image(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str
-    table: Literal["gpt", "dos"] = "gpt"
-    partitions: Sequence[ImagePartition]
-
-
-class ImagePartition(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str
-    start: int = Field(ge=0)
-    size: int | None = Field(default=None, gt=0)
-    type: str | None = None
-    bootable: bool = False
 
 
 @dataclass(frozen=True)

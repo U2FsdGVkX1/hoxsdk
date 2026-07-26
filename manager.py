@@ -172,7 +172,7 @@ class Manager:
         with command_log(self.logdir / "_image.log"):
             for tool in ("sfdisk", "dd"):
                 if not shutil.which(tool):
-                    raise EnvironmentError(f"Required tool '{tool}' not found in PATH")
+                    raise RuntimeError(f"Required tool '{tool}' not found in PATH")
 
             workdir = (self.builddir / "_image").resolve()
             rootfs = (workdir / "rootfs").resolve()

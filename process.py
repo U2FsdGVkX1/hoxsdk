@@ -38,24 +38,29 @@ async def shell(
         shell=True,
     )
 
-    with log_file.open("ab") as log:
-        log.write(f"$ {cmd}\n".encode())
+    try:
+        with log_file.open("ab") as log:
+            log.write(f"$ {cmd}\n".encode())
 
-        async def _pump(stream, out) -> bytes:
-            data = bytearray()
-            while chunk := await stream.read(4096):
-                data.extend(chunk)
-                out.write(chunk.decode(errors="replace"))
-                out.flush()
-                log.write(chunk)
-            return bytes(data)
+            async def _pump(stream, out) -> bytes:
+                data = bytearray()
+                while chunk := await stream.read(4096):
+                    data.extend(chunk)
+                    out.write(chunk.decode(errors="replace"))
+                    out.flush()
+                    log.write(chunk)
+                return bytes(data)
 
-        stdout_data, stderr_data = await asyncio.gather(
-            _pump(process.stdout, sys.stdout),
-            _pump(process.stderr, sys.stderr),
-        )
+            stdout_data, stderr_data = await asyncio.gather(
+                _pump(process.stdout, sys.stdout),
+                _pump(process.stderr, sys.stderr),
+            )
 
-    await process.wait()
+        await process.wait()
+    except asyncio.CancelledError:
+        if process.returncode is None:
+            process.kill()
+        raise
     if process.returncode != 0:
         raise RuntimeError(
             f"Command failed with exit code {process.returncode}: {cmd}\n"

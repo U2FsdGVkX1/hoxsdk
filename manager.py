@@ -49,31 +49,28 @@ class Manager:
         self.params = dict(params or {})
 
     @staticmethod
-    def _dependency_groups(modules: list[Module], after_attr: str) -> list[list[Module]]:
-        before_attr = after_attr.replace("_after", "_before")
-
-        module_map: dict[str, Module] = { module.name: module for module in modules }
+    def _dependencies(modules: list[Module], stage: str) -> dict[str, set[str]]:
+        module_names = { module.name for module in modules }
         depends_map: dict[str, set[str]] = { module.name: set() for module in modules }
         for module in modules:
-            for dependency in getattr(module, after_attr):
-                if dependency in module_map:
+            for dependency in getattr(module, f"{stage}_after"):
+                if dependency in module_names:
                     depends_map[module.name].add(dependency)
-            for target in getattr(module, before_attr):
-                if target in module_map:
+            for target in getattr(module, f"{stage}_before"):
+                if target in module_names:
                     depends_map[target].add(module.name)
 
-        sorter = TopologicalSorter(depends_map)
         try:
-            sorter.prepare()
+            TopologicalSorter(depends_map).prepare()
         except CycleError as exc:
             raise ValueError(f"Circular dependency detected among modules: {exc}") from exc
+        return depends_map
 
-        groups: list[list[Module]] = []
-        while sorter.is_active():
-            ready = sorter.get_ready()
-            groups.append([module_map[name] for name in ready])
-            sorter.done(*ready)
-        return groups
+    @staticmethod
+    def _dependency_order(modules: list[Module], stage: str) -> list[Module]:
+        module_map = { module.name: module for module in modules }
+        depends_map = Manager._dependencies(modules, stage)
+        return [module_map[name] for name in TopologicalSorter(depends_map).static_order()]
 
     @staticmethod
     def _partition_size(image_partition: ImagePartition, workdir: Path) -> int:
@@ -108,14 +105,23 @@ class Manager:
                         )
                         await process.wait()
                     await action.run(moduledir, env)
-
         modules = [module for module in self.config.modules if module.build]
-        for group in self._dependency_groups(modules, "build_after"):
-            if self.debug:
-                for module in group:
-                    await run_build(module)
-            else:
-                await asyncio.gather(*(run_build(module) for module in group))
+        if self.debug:
+            for module in self._dependency_order(modules, "build"):
+                await run_build(module)
+            return
+
+        depends_map = self._dependencies(modules, "build")
+        finished = { module.name: asyncio.Event() for module in modules }
+        async def run_when_ready(module: Module) -> None:
+            for dependency in depends_map[module.name]:
+                await finished[dependency].wait()
+            await run_build(module)
+            finished[module.name].set()
+
+        async with asyncio.TaskGroup() as group:
+            for module in modules:
+                group.create_task(run_when_ready(module))
 
     async def _write_images(self, workdir: Path) -> None:
         for image in self.config.images:
@@ -208,16 +214,15 @@ class Manager:
 
                 scripts = ["set -euo pipefail"]
                 modules = [module for module in self.config.modules if module.install]
-                for group in self._dependency_groups(modules, "install_after"):
-                    for module in group:
-                        scripts.append(
-                            f"export MODULE_DIR={quote(str(self.builddir / module.name))}"
-                        )
-                        for item in module.install:
-                            if isinstance(item, Path):
-                                scripts.append(f"source {quote(str(item))}")
-                            else:
-                                scripts.append(item)
+                for module in self._dependency_order(modules, "install"):
+                    scripts.append(
+                        f"export MODULE_DIR={quote(str(self.builddir / module.name))}"
+                    )
+                    for item in module.install:
+                        if isinstance(item, Path):
+                            scripts.append(f"source {quote(str(item))}")
+                        else:
+                            scripts.append(item)
 
                 scripts_path = workdir / "install.sh"
                 scripts_path.write_text("\n".join(scripts))

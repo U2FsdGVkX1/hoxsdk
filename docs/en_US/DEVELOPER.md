@@ -77,7 +77,7 @@ def configure(ctx: ConfigContext) -> Board:
 | Field | Required | Purpose |
 | --- | --- | --- |
 | `name` | Yes | Partition image file name |
-| `start` | Yes | Start offset in 512-byte sectors |
+| `start` | No | Start offset in 512-byte sectors; omitted values follow the previous partition, 1 MiB aligned |
 | `size` | No | Size in sectors; omitted values are inferred from the partition image file |
 | `type` | No | Partition type passed to `sfdisk` |
 | `bootable` | No | Marks the partition bootable when supported by the table type |

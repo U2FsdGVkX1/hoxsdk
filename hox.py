@@ -52,7 +52,7 @@ class ImagePartition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
-    start: int = Field(ge=0)
+    start: int | None = Field(default=None, ge=0)
     size: int | None = Field(default=None, gt=0)
     type: str | None = None
     bootable: bool = False

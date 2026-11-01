@@ -9,7 +9,7 @@ from shlex import quote
 
 from dotenv import dotenv_values
 
-from hox import Board, ImagePartition, Module
+from hox import Board, Module
 from process import command_log, shell
 
 
@@ -26,6 +26,7 @@ class DebugConfig:
 
 class Manager:
     SECTOR_SIZE = 512
+    ALIGNMENT = 2048
     GPT_BACKUP_SECTORS = 33
 
     def __init__(
@@ -72,18 +73,6 @@ class Manager:
         depends_map = Manager._dependencies(modules, stage)
         return [module_map[name] for name in TopologicalSorter(depends_map).static_order()]
 
-    @staticmethod
-    def _partition_size(image_partition: ImagePartition, workdir: Path) -> int:
-        if image_partition.size:
-            return image_partition.size
-
-        partition_image = (workdir / image_partition.name).resolve()
-        if not partition_image.is_file():
-            raise FileNotFoundError(f"Partition image not found: {partition_image}")
-
-        size = partition_image.stat().st_size
-        return math.ceil(size / Manager.SECTOR_SIZE)
-
     async def build(self) -> None:
         async def run_build(module: Module) -> None:
             moduledir = self.builddir / module.name
@@ -125,47 +114,43 @@ class Manager:
 
     async def _write_images(self, workdir: Path) -> None:
         for image in self.config.images:
-            disk = (self.outputdir / image.name).resolve()
-
+            disk = self.outputdir / image.name
             sfdisk_lines = [f"label: {image.table}", "unit: sectors", ""]
-            total_sectors = 0
+
+            layout: list[tuple[Path, int]] = []
+            end = self.ALIGNMENT
             for image_partition in image.partitions:
-                size = self._partition_size(image_partition, workdir)
-                total_sectors = max(total_sectors, image_partition.start + size)
-                fields = [f"start={image_partition.start}", f"size={size}"]
-
-                if image_partition.type is not None:
-                    fields.append(f"type={image_partition.type}")
-
-                if image_partition.bootable:
-                    fields.append("bootable")
-
-                sfdisk_lines.append(", ".join(fields))
-            if image.table == "gpt":
-                total_sectors += self.GPT_BACKUP_SECTORS
-
-            sfdisk_script = workdir / f"{disk.name}.sfdisk"
-            sfdisk_script.write_text("\n".join(sfdisk_lines) + "\n")
-            with disk.open("wb") as file:
-                file.truncate(total_sectors * self.SECTOR_SIZE)
-            await shell(
-                f"sfdisk --wipe always --wipe-partitions always "
-                f"{quote(str(disk))} < {quote(str(sfdisk_script))}"
-            )
-
-            for image_partition in image.partitions:
-                partition_image = (workdir / image_partition.name).resolve()
-                capacity = self._partition_size(image_partition, workdir) * self.SECTOR_SIZE
-                image_size = partition_image.stat().st_size
-                if image_size > capacity:
+                partition_image = workdir / image_partition.name
+                used = math.ceil(partition_image.stat().st_size / self.SECTOR_SIZE)
+                size = image_partition.size or used
+                if used > size:
                     raise ValueError(
                         f"Partition image {partition_image} is larger than configured size "
-                        f"({image_size} > {capacity})"
+                        f"({used} > {size} sectors)"
                     )
+                start = image_partition.start
+                if start is None:
+                    start = math.ceil(end / self.ALIGNMENT) * self.ALIGNMENT
+                end = max(end, start + size)
+                layout.append((partition_image, start))
+                sfdisk_lines.append(", ".join(filter(None, [
+                    f"start={start}",
+                    f"size={size}",
+                    f"type={image_partition.type}" if image_partition.type else None,
+                    "bootable" if image_partition.bootable else None,
+                ])))
+            if image.table == "gpt":
+                end += self.GPT_BACKUP_SECTORS
+
+            sfdisk_script = workdir / f"{image.name}.sfdisk"
+            sfdisk_script.write_text("\n".join(sfdisk_lines) + "\n")
+            with disk.open("wb") as file:
+                file.truncate(end * self.SECTOR_SIZE)
+            await shell(f"sfdisk {quote(str(disk))} < {quote(str(sfdisk_script))}")
+            for partition_image, start in layout:
                 await shell(
                     f"dd if={quote(str(partition_image))} of={quote(str(disk))} "
-                    f"bs={self.SECTOR_SIZE} seek={image_partition.start} "
-                    "conv=notrunc,sparse status=none"
+                    f"bs={self.SECTOR_SIZE} seek={start} conv=notrunc,sparse status=none"
                 )
 
     async def images(self) -> None:

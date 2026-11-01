@@ -14,10 +14,6 @@ KiB = 1024 // SECTOR
 MiB = 1024 * KiB
 GiB = 1024 * MiB
 
-EFI_SIZE: int = 500 * MiB
-BOOT_SIZE: int = 1 * GiB
-ROOTFS_SIZE: int = 15 * GiB
-
 KERNEL_INSTALL = """\
 kernel_version=$(basename "$MODULE_DIR/modules/lib/modules/"*)
 cp -r "$MODULE_DIR/modules/lib/modules/$kernel_version" "$ROOTFS/lib/modules/$kernel_version"
@@ -28,9 +24,9 @@ cp -r "$MODULE_DIR"/arch/*/boot/Image.gz "$ROOTFS/lib/modules/$kernel_version/vm
 
 def default_partitions():
     return [
-        Partition(name="rootfs.img", size=ROOTFS_SIZE, mkfs="mkfs.ext4", mountpoint="/"),
-        Partition(name="boot.img", size=BOOT_SIZE, mkfs="mkfs.ext4", mountpoint="/boot"),
-        Partition(name="efi.img", size=EFI_SIZE, mkfs="mkfs.fat -F 32", mountpoint="/boot/efi"),
+        Partition(name="rootfs.img", size=15 * GiB, mkfs="mkfs.ext4", mountpoint="/"),
+        Partition(name="boot.img", size=1 * GiB, mkfs="mkfs.ext4", mountpoint="/boot"),
+        Partition(name="efi.img", size=500 * MiB, mkfs="mkfs.fat -F 32", mountpoint="/boot/efi"),
     ]
 
 
@@ -39,21 +35,9 @@ def default_images():
         Image(
             name="sdcard.img",
             partitions=[
-                ImagePartition(
-                    name="efi.img",
-                    start=1 * MiB,
-                    type="C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-                ),
-                ImagePartition(
-                    name="boot.img",
-                    start=1 * MiB + EFI_SIZE,
-                    type="BC13C2FF-59E6-4262-A352-B275FD6F7172",
-                ),
-                ImagePartition(
-                    name="rootfs.img",
-                    start=1 * MiB + EFI_SIZE + BOOT_SIZE,
-                    type="0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-                ),
+                ImagePartition(name="efi.img", type="C12A7328-F81F-11D2-BA4B-00A0C93EC93B"),
+                ImagePartition(name="boot.img", type="BC13C2FF-59E6-4262-A352-B275FD6F7172"),
+                ImagePartition(name="rootfs.img", type="0FC63DAF-8483-4772-8E79-3D69D8477DE4"),
             ],
         )
     ]

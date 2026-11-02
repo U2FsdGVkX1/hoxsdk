@@ -2,8 +2,9 @@ import asyncio
 import math
 import os
 import shutil
+from contextlib import nullcontext
 from dataclasses import dataclass
-from graphlib import CycleError, TopologicalSorter
+from graphlib import TopologicalSorter
 from pathlib import Path
 from shlex import quote
 
@@ -49,29 +50,21 @@ class Manager:
         self.debug = tuple(debug or [])
         self.params = dict(params or {})
 
-    @staticmethod
-    def _dependencies(modules: list[Module], stage: str) -> dict[str, set[str]]:
-        module_names = { module.name for module in modules }
-        depends_map: dict[str, set[str]] = { module.name: set() for module in modules }
-        for module in modules:
-            for dependency in getattr(module, f"{stage}_after"):
-                if dependency in module_names:
-                    depends_map[module.name].add(dependency)
+    def _dependencies(self, stage: str) -> dict[str, set[str]]:
+        depends_map = {
+            module.name: set(getattr(module, f"{stage}_after"))
+            for module in self.config.modules
+        }
+        for module in self.config.modules:
             for target in getattr(module, f"{stage}_before"):
-                if target in module_names:
-                    depends_map[target].add(module.name)
-
-        try:
-            TopologicalSorter(depends_map).prepare()
-        except CycleError as exc:
-            raise ValueError(f"Circular dependency detected among modules: {exc}") from exc
+                depends_map[target].add(module.name)
+        TopologicalSorter(depends_map).prepare()
         return depends_map
 
-    @staticmethod
-    def _dependency_order(modules: list[Module], stage: str) -> list[Module]:
-        module_map = { module.name: module for module in modules }
-        depends_map = Manager._dependencies(modules, stage)
-        return [module_map[name] for name in TopologicalSorter(depends_map).static_order()]
+    def _dependency_order(self, stage: str) -> list[Module]:
+        module_map = { module.name: module for module in self.config.modules }
+        order = TopologicalSorter(self._dependencies(stage)).static_order()
+        return [module_map[name] for name in order]
 
     async def build(self) -> None:
         async def run_build(module: Module) -> None:
@@ -94,22 +87,20 @@ class Manager:
                         )
                         await process.wait()
                     await action.run(moduledir, env)
-        modules = [module for module in self.config.modules if module.build]
-        if self.debug:
-            for module in self._dependency_order(modules, "build"):
-                await run_build(module)
-            return
 
-        depends_map = self._dependencies(modules, "build")
-        finished = { module.name: asyncio.Event() for module in modules }
+        depends_map = self._dependencies("build")
+        finished = { name: asyncio.Event() for name in depends_map }
+        serial = asyncio.Lock() if self.debug else nullcontext()
         async def run_when_ready(module: Module) -> None:
             for dependency in depends_map[module.name]:
                 await finished[dependency].wait()
-            await run_build(module)
+            if module.build:
+                async with serial:
+                    await run_build(module)
             finished[module.name].set()
 
         async with asyncio.TaskGroup() as group:
-            for module in modules:
+            for module in self.config.modules:
                 group.create_task(run_when_ready(module))
 
     async def _write_images(self, workdir: Path) -> None:
@@ -198,8 +189,9 @@ class Manager:
                     )
 
                 scripts = ["set -euo pipefail"]
-                modules = [module for module in self.config.modules if module.install]
-                for module in self._dependency_order(modules, "install"):
+                for module in self._dependency_order("install"):
+                    if not module.install:
+                        continue
                     scripts.append(
                         f"export MODULE_DIR={quote(str(self.builddir / module.name))}"
                     )

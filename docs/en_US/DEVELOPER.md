@@ -194,6 +194,8 @@ Effects of `--debug`:
 | `kernel` | All build actions in the `kernel` module |
 | `kernel:0` | First build action in the `kernel` module |
 
+Both parts accept shell-style wildcards, for example `image-*` or `kernel:[0-2]`.
+
 `--debug` is repeatable to combine patterns:
 
 ```sh

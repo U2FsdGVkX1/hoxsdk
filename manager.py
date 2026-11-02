@@ -3,7 +3,7 @@ import math
 import os
 import shutil
 from contextlib import nullcontext
-from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from graphlib import TopologicalSorter
 from pathlib import Path
 from shlex import quote
@@ -12,17 +12,6 @@ from dotenv import dotenv_values
 
 from hox import Board, Module
 from process import command_log, shell
-
-
-@dataclass(frozen=True)
-class DebugConfig:
-    module_name: str
-    action_index: str
-
-    def matches(self, module_name: str, action_index: int) -> bool:
-        return (self.module_name in ("*", module_name)) and (
-            self.action_index in ("*", str(action_index))
-        )
 
 
 class Manager:
@@ -38,7 +27,7 @@ class Manager:
         builddir: Path,
         outputdir: Path,
         logdir: Path,
-        debug: list[DebugConfig] | None = None,
+        debug: list[str] | None = None,
         params: dict[str, str] | None = None,
     ):
         self.config = config
@@ -76,7 +65,7 @@ class Manager:
             with command_log(self.logdir / f"{module.name}.log"):
                 for index, action in enumerate(module.build):
                     env = {**module.env, **dotenv_values(moduledir / ".env")}
-                    if any(item.matches(module.name, index) for item in self.debug):
+                    if any(fnmatchcase(f"{module.name}:{index}", pattern) for pattern in self.debug):
                         print(f"[debug] Paused before {module.name}:{index} ({action.use})")
                         print(f"[debug] cwd: {moduledir}")
                         print("[debug] Exit the shell to continue")

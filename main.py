@@ -4,7 +4,7 @@ import runpy
 from pathlib import Path
 
 from hox import ConfigContext
-from manager import DebugConfig, Manager
+from manager import Manager
 
 
 class Args(argparse.Namespace):
@@ -13,16 +13,14 @@ class Args(argparse.Namespace):
     desktop: str
     skipbuild: bool
     skipimage: bool
-    debug: list[DebugConfig]
+    debug: list[str]
     params_raw: list[tuple[str, str]]
     params: dict[str, str]
 
 
-def parse_debug(value: str) -> DebugConfig:
+def parse_debug(value: str) -> str:
     module_name, _, action_index = value.partition(":")
-    if not action_index:
-        action_index = "*"
-    return DebugConfig(module_name, action_index)
+    return f"{module_name}:{action_index or '*'}"
 
 
 def parse_param(value: str) -> tuple[str, str]:

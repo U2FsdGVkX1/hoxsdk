@@ -194,6 +194,8 @@ python main.py -b <board> -a <adapter> --debug <pattern>
 | `kernel` | `kernel` 模块的全部构建 action |
 | `kernel:0` | `kernel` 模块的第 1 个构建 action |
 
+两部分都支持 shell 通配符，例如 `image-*`、`kernel:[0-2]`。
+
 `--debug` 可重复以组合多个模式：
 
 ```sh

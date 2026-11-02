@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from graphlib import TopologicalSorter
 from pathlib import Path
@@ -14,30 +15,20 @@ from hox import Board, Module
 from process import command_log, shell
 
 
+@dataclass
 class Manager:
     SECTOR_SIZE = 512
     ALIGNMENT = 2048
     GPT_BACKUP_SECTORS = 33
 
-    def __init__(
-        self,
-        config: Board,
-        boarddir: Path,
-        adapterdir: Path,
-        builddir: Path,
-        outputdir: Path,
-        logdir: Path,
-        debug: list[str] | None = None,
-        params: dict[str, str] | None = None,
-    ):
-        self.config = config
-        self.boarddir = boarddir
-        self.adapterdir = adapterdir
-        self.builddir = builddir
-        self.outputdir = outputdir
-        self.logdir = logdir
-        self.debug = tuple(debug or [])
-        self.params = dict(params or {})
+    config: Board
+    boarddir: Path
+    adapterdir: Path
+    builddir: Path
+    outputdir: Path
+    logdir: Path
+    debug: list[str] = field(default_factory=list)
+    params: dict[str, str] = field(default_factory=dict)
 
     def _dependencies(self, stage: str) -> dict[str, set[str]]:
         depends_map = {

@@ -154,26 +154,16 @@ class Manager:
                 **self.params,
             }
 
-            mounted: dict[Path, Path] = {}
-            for partition in self.config.partitions:
-                partition_image = (workdir / partition.name).resolve()
-                partition_mountpoint = (
-                    rootfs / partition.mountpoint.lstrip("/")
-                ).resolve()
-
-                with partition_image.open("wb") as file:
-                    file.truncate(partition.size * self.SECTOR_SIZE)
-                await shell(f"{partition.mkfs} {quote(str(partition_image))}")
-                mounted[partition_image] = partition_mountpoint
-
             try:
-                for partition_image, partition_mountpoint in mounted.items():
-                    assert str(partition_mountpoint) != "/"
-                    await shell(f"sudo -E rm -rf {quote(str(partition_mountpoint))}")
-                    await shell(f"sudo -E mkdir -p {quote(str(partition_mountpoint))}")
+                for partition in self.config.partitions:
+                    partition_image = workdir / partition.name
+                    partition_mountpoint = rootfs / partition.mountpoint.lstrip("/")
+                    with partition_image.open("wb") as file:
+                        file.truncate(partition.size * self.SECTOR_SIZE)
+                    await shell(f"{partition.mkfs} {quote(str(partition_image))}")
+                    await shell(f"sudo mkdir -p {quote(str(partition_mountpoint))}")
                     await shell(
-                        f"sudo -E mount -o loop "
-                        f"{quote(str(partition_image))} "
+                        f"sudo mount -o loop {quote(str(partition_image))} "
                         f"{quote(str(partition_mountpoint))}"
                     )
 
@@ -196,8 +186,6 @@ class Manager:
                     f"sudo -E bash {quote(str(scripts_path))}", cwd=rootfs, env=env
                 )
             finally:
-                await shell(
-                    f"grep {quote(str(rootfs))} /proc/mounts | "
-                    "cut -d' ' -f2 | sort -r | xargs -r sudo -E umount"
-                )
+                if rootfs.is_mount():
+                    await shell(f"sudo umount -R {quote(str(rootfs))}")
             await self._write_images(workdir)

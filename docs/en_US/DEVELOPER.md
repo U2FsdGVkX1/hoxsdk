@@ -2,21 +2,15 @@
 
 ## Concepts
 
-The SDK drives builds and image generation by composing a **board config** and an **adapter config**.
+The SDK builds artifacts and generates disk images from a **board config** and an **adapter config**.
 
 - **Board config** (`boards/<board>/config.py`): defines architecture, partitions, disk images, and a module list.
 - **Adapter config** (`adapters/<adapter>/config.py`): provides distribution-related modules.
-- **Module**: a pluggable build (`build`) and install (`install`) unit, ordered by `build_after`, `build_before`, `install_after`, and `install_before`.
-- **Action**: a build action within a module. Implementations live in `actions/`; field docs live in `docs/en_US/actions/`.
-- **Install snippet**: an install unit within a module, run during image generation to customize the root filesystem.
+- **Module**: a build and install unit holding build actions (`build`) and install snippets (`install`).
+- **Action**: a build step within a module, such as cloning a repository, applying patches, or running `make`. Implementations live in `actions/`; field docs live in `docs/en_US/actions/`.
+- **Install snippet**: a shell command or script within a module, run during image generation to customize the root filesystem.
 
-Run command:
-
-```sh
-python main.py -b <board> -a <adapter>
-```
-
-`<board>` is a path relative to `boards/`, `<adapter>` is a directory name under `adapters/`.
+See [USAGE.md](USAGE.md) for command-line usage.
 
 ## Writing a Board Config
 
@@ -125,13 +119,12 @@ Module(
 - Modules with `build` actions run in `build/<board>/<module>/`; the workdir is recreated each time.
 - Build actions within a module run in order; a `.env` file written by one action passes variables to later build actions in the same module.
 - During build, modules whose `build_after` and `build_before` constraints are all satisfied run concurrently.
-- Install snippets run during image generation in topological order determined by `install_after` and `install_before`, and can access build artifacts via `MODULE_DIR` and `BUILD_DIR`.
 
 ## Install Snippets
 
-Referenced in a module's `install` list. `str` values are executed directly as shell commands; `Path` values are sourced as scripts. Adapter snippets go in `adapters/<adapter>/`, board snippets go in `boards/<board>/`, and shared snippets go in `boards/`.
+Referenced in a module's `install` list. Adapter snippets go in `adapters/<adapter>/`, board snippets go in `boards/<board>/`, and shared snippets go in `boards/`.
 
-All snippets run in one shell session in topological order determined by `install_after`, working directory `ROOTFS`. Functions and variables defined by earlier snippets are available to later ones.
+All snippets run in one shell session in topological order determined by `install_after` and `install_before`, with `ROOTFS` as the working directory. Snippets can reach build artifacts via `MODULE_DIR` and `BUILD_DIR`. Functions and variables defined by earlier snippets are available to later ones.
 
 | Variable | Purpose |
 | --- | --- |
@@ -151,20 +144,16 @@ All snippets run in one shell session in topological order determined by `instal
 
 - `default_partitions()` — standard partition layout (rootfs, boot, efi).
 - `default_images()` — standard disk image layout (sdcard.img).
-- `firmware(arch)` — returns a namespace with `opensbi`, `uboot`, and `kernel` factory functions. Common parameters: `src`, `args`, `branch`, `hash`, `prebuild`, `postbuild`, `env`, `install`, `build_after`, `build_before`, `install_after`, `install_before`. Additionally, `uboot` and `kernel` accept `defconfig`. `branch` and `hash` are passed to the `git` action; `env` is merged over the default module environment (`CROSS_COMPILE`, `ARCH`, ...) and can override it.
-
-Import API types from `hox` and action constructors from `actions`:
-
-```python
-from hox import Board, ConfigContext, Module
-from actions import make
-```
-
-Board configs load the selected adapter with `ctx.adapter`.
+- `firmware(arch)` — returns a namespace with `opensbi`, `uboot`, and `kernel` factory functions. Common parameters: `src`, `args`, `branch`, `hash`, `prebuild`, `postbuild`, `env`, `install`, `build_after`, `build_before`, `install_after`, `install_before`. `uboot` and `kernel` also accept `defconfig`. `branch` and `hash` are passed to the `git` action; `env` is merged over the default module environment (`CROSS_COMPILE`, `ARCH`, ...) and can override it.
 
 ## Actions
 
-Each action module exports an `Action` class, and `actions/__init__.py` re-exports common constructors for config use: `from actions import git, make, cp, patch, shell`. `BaseAction.use` is derived from the module name.
+Each action module exports an `Action` class, and `actions/__init__.py` re-exports them as constructors. Configs import actions from `actions` and API types from `hox`:
+
+```python
+from hox import Board, ConfigContext, Module
+from actions import git, make, cp, patch, shell
+```
 
 ## Debugging
 
@@ -184,9 +173,9 @@ Effects of `--debug`:
 
 - Prints the final config after Python DSL evaluation and Pydantic validation.
 - When a matched build action is reached, opens a shell in `build/<board>/<module>/` with environment variables from module `env` and any `.env` file. Execution continues after exiting the shell.
-- When any module is matched, the build stage runs modules sequentially instead of concurrently, making debugging easier.
+- Runs build-stage modules sequentially instead of concurrently.
 
-`<pattern>` format is `MODULE[:INDEX]`:
+`<pattern>` format is `MODULE[:INDEX]`, where `INDEX` is zero-based. `--debug` without a pattern is the same as `*`:
 
 | Pattern | Meaning |
 | --- | --- |
@@ -201,5 +190,3 @@ Both parts accept shell-style wildcards, for example `image-*` or `kernel:[0-2]`
 ```sh
 python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
 ```
-
-Build action indexes are zero-based.

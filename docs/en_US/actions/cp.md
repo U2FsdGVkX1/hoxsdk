@@ -17,4 +17,4 @@ cp(src=ctx.BOARD_DIR / "kernel.config", dest=Path(".config"))
 
 ## Notes
 
-- Directories are copied recursively and may be merged into existing directories.
+Directories are copied recursively and may be merged into existing directories.

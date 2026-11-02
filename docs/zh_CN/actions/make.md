@@ -10,10 +10,6 @@ make(args="defconfig")
 
 ## 字段
 
-| 字段 | 类型 | 必选 | 说明 |
+| 字段 | 类型 | 必需 | 说明 |
 | --- | --- | --- | --- |
-| `args` | `str` | 否 | 追加到 `make` 后的参数字符串 |
-
-## 注意
-
-- 实际执行形式为 `make -j$(cpu_count) <args>`。
+| `args` | `str` | 否 | 追加到 `make -j$(cpu_count)` 后的参数字符串 |

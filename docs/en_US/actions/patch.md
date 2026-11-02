@@ -14,7 +14,3 @@ patch(patches=[ctx.BOARD_DIR / "fix.patch"])
 | --- | --- | --- | --- |
 | `patches` | `Sequence[Path]` | No | List of patch files. Paths may be absolute or relative to the current module working directory |
 | `gitam` | `bool` | No | When `true`, use `git am`; otherwise use `patch -p1` |
-
-## Notes
-
-- Patches are applied in order with `patch -p1`; `gitam=true` uses `git am`.

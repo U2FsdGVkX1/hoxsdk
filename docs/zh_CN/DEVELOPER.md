@@ -2,21 +2,15 @@
 
 ## 概念
 
-SDK 通过组合 **board 配置** 和 **adapter 配置** 驱动构建与镜像生成。
+SDK 根据 **board 配置** 和 **adapter 配置** 构建产物并生成磁盘镜像。
 
 - **Board 配置** (`boards/<board>/config.py`)：定义架构、分区、镜像和模块列表。
 - **Adapter 配置** (`adapters/<adapter>/config.py`)：提供发行版相关模块。
-- **Module**：构建 (`build`) 与安装 (`install`) 的可插拔单元，通过 `build_after`、`build_before`、`install_after` 和 `install_before` 控制执行顺序。
-- **Action**：模块的构建 action，实现见 `actions/`，字段文档见 `docs/zh_CN/actions/`。
-- **Install 片段**：模块的安装单元，在镜像生成阶段运行，用于定制 rootfs。
+- **Module**：构建与安装的单元，包含构建 action (`build`) 和 install 片段 (`install`)。
+- **Action**：模块中的构建步骤，例如克隆仓库、打补丁、执行 `make`。实现见 `actions/`，字段文档见 `docs/zh_CN/actions/`。
+- **Install 片段**：模块中的 shell 命令或脚本，在镜像生成阶段运行，用于定制 rootfs。
 
-运行命令：
-
-```sh
-python main.py -b <board> -a <adapter>
-```
-
-`<board>` 是 `boards/` 下的相对路径，`<adapter>` 是 `adapters/` 下的目录名。
+命令行用法见 [USAGE.md](USAGE.md)。
 
 ## 编写 Board 配置
 
@@ -92,7 +86,7 @@ def configure(ctx: ConfigContext) -> Board:
 | `build_after` | `[]` | 指定哪些模块必须先完成构建 |
 | `build_before` | `[]` | 指定哪些模块必须在此模块之后构建 |
 | `install_after` | `[]` | 指定哪些模块必须先完成安装 |
-| `install_before` | `[]` | 指定哪些模块必须在此模块之后安装；适合将 board 模块插入 adapter 最终化步骤之前 |
+| `install_before` | `[]` | 指定哪些模块必须在此模块之后安装；适合将 board 模块插入 adapter 收尾步骤之前 |
 | `requires` | `[]` | 运行前必须存在的宿主机命令 |
 | `env` | `{}` | 传入构建 action 的环境变量 |
 | `build` | `[]` | 构建 action 列表 |
@@ -125,13 +119,12 @@ Module(
 - 有 `build` action 的模块在 `build/<board>/<module>/` 中运行，工作目录每次重建。
 - 同一模块内构建 action 按顺序执行，action 写入的 `.env` 可传变量给后续构建 action。
 - 构建阶段，`build_after` 和 `build_before` 约束全部满足的模块并发执行。
-- install 片段在镜像生成阶段按 `install_after` 和 `install_before` 拓扑顺序运行，通过 `MODULE_DIR` 和 `BUILD_DIR` 访问构建产物。
 
 ## Install 片段
 
-在模块的 `install` 字段中引用。`str` 值直接作为 shell 命令执行；`Path` 值以 `source` 方式执行脚本。adapter 片段放在 `adapters/<adapter>/`，board 片段放在 `boards/<board>/`，共享片段放在 `boards/`。
+在模块的 `install` 字段中引用。adapter 片段放在 `adapters/<adapter>/`，board 片段放在 `boards/<board>/`，共享片段放在 `boards/`。
 
-所有片段在同一 shell 会话中按 `install_after` 拓扑顺序运行，工作目录为 `ROOTFS`。前面片段定义的函数和变量可被后续片段使用。
+所有片段在同一 shell 会话中按 `install_after` 和 `install_before` 拓扑顺序运行，工作目录为 `ROOTFS`，可通过 `MODULE_DIR` 和 `BUILD_DIR` 访问构建产物。前面片段定义的函数和变量可被后续片段使用。
 
 | 变量 | 用途 |
 | --- | --- |
@@ -145,26 +138,22 @@ Module(
 | `OUTPUT_DIR` | `outputs/<board>/` 的绝对路径 |
 | `ARCH` | `config.py` 中的 `arch` 值 |
 
-## 通用辅助项
+## 公共函数
 
 `boards/common.py` 提供共享默认值和固件模板：
 
 - `default_partitions()` — 标准分区布局（rootfs、boot、efi）。
 - `default_images()` — 标准磁盘镜像布局（sdcard.img）。
-- `firmware(arch)` — 返回包含 `opensbi`、`uboot` 和 `kernel` 工厂函数的命名空间。通用参数：`src`、`args`、`branch`、`hash`、`prebuild`、`postbuild`、`env`、`install`、`build_after`、`build_before`、`install_after`、`install_before`。此外 `uboot` 和 `kernel` 还接受 `defconfig`。`branch` 和 `hash` 透传给 `git` action；`env` 合并到默认的 module 环境变量（`CROSS_COMPILE`、`ARCH` 等）之上，可覆盖默认值。
-
-从 `hox` 导入 API 类型，从 `actions` 导入 action 构造器：
-
-```python
-from hox import Board, ConfigContext, Module
-from actions import make
-```
-
-Board 配置通过 `ctx.adapter` 加载当前 adapter。
+- `firmware(arch)` — 返回包含 `opensbi`、`uboot` 和 `kernel` 工厂函数的命名空间。通用参数：`src`、`args`、`branch`、`hash`、`prebuild`、`postbuild`、`env`、`install`、`build_after`、`build_before`、`install_after`、`install_before`。`uboot` 和 `kernel` 还接受 `defconfig`。`branch` 和 `hash` 透传给 `git` action；`env` 合并到默认的 module 环境变量（`CROSS_COMPILE`、`ARCH` 等）之上，可覆盖默认值。
 
 ## Actions
 
-每个 action 模块导出 `Action` 类，`actions/__init__.py` 会为配置 re-export 常用构造器：`from actions import git, make, cp, patch, shell`。`BaseAction.use` 由模块名派生。
+每个 action 模块导出 `Action` 类，`actions/__init__.py` 将它们 re-export 为构造器。配置中从 `actions` 导入 action，从 `hox` 导入 API 类型：
+
+```python
+from hox import Board, ConfigContext, Module
+from actions import git, make, cp, patch, shell
+```
 
 ## 调试
 
@@ -180,13 +169,13 @@ python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug
 python main.py -b <board> -a <adapter> --debug <pattern>
 ```
 
-`--debug` 的影响：
+`--debug` 会：
 
 - 打印 Python DSL 求值并经 Pydantic 验证后的最终配置。
-- 命中匹配的构建 action 时，在 `build/<board>/<module>/` 目录下打开 shell，环境变量包含模块 `env` 和 `.env` 文件内容。退出 shell 后继续执行。
-- 命中匹配模块时，构建阶段不会并发执行，改为逐个顺序执行，便于调试。
+- 执行到匹配的构建 action 时，在 `build/<board>/<module>/` 目录下打开 shell，环境变量包含模块 `env` 和 `.env` 文件内容。退出 shell 后继续执行。
+- 将构建阶段改为顺序执行，不再并发。
 
-`<pattern>` 格式为 `MODULE[:INDEX]`：
+`<pattern>` 格式为 `MODULE[:INDEX]`，`INDEX` 从 0 开始；不带 `<pattern>` 时等同于 `*`：
 
 | 模式 | 含义 |
 | --- | --- |
@@ -196,10 +185,8 @@ python main.py -b <board> -a <adapter> --debug <pattern>
 
 两部分都支持 shell 通配符，例如 `image-*`、`kernel:[0-2]`。
 
-`--debug` 可重复以组合多个模式：
+`--debug` 可以多次指定，组合多个模式：
 
 ```sh
 python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
 ```
-
-构建 action 索引从 0 开始。

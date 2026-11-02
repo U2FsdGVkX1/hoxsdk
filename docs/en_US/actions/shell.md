@@ -15,8 +15,8 @@ shell(cmds=[
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `cmds` | `Sequence[str]` | No | Commands to execute sequentially |
+| `cmds` | `Sequence[str]` | No | Command list |
 
 ## Notes
 
-- Commands run in order. Each command starts a separate shell, so state from `cd`, `export`, and similar commands does not carry over.
+Each command starts a separate shell, so state from `cd`, `export`, and similar commands does not carry over.

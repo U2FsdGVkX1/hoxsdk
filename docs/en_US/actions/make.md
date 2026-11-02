@@ -12,8 +12,4 @@ make(args="defconfig")
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `args` | `str` | No | Argument string appended after `make` |
-
-## Notes
-
-- Runs as `make -j$(cpu_count) <args>`.
+| `args` | `str` | No | Argument string appended after `make -j$(cpu_count)` |

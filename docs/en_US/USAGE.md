@@ -23,13 +23,13 @@ Module `requires` may declare additional tools (e.g. `git`, `patch`, `make`, or 
 ## Commands
 
 ```sh
-python main.py -b <board> -a <adapter>                          # build and package
-python main.py -b <board> -a <adapter> --skipimage             # build stage only
-python main.py -b <board> -a <adapter> --skipbuild              # image stage only
-python main.py -b <board> -a <adapter> -p KEY:VALUE             # pass a parameter
-python main.py -b <board> -a <adapter> -p KEY                  # set KEY=true
+python main.py -b <board> -a <adapter>                                  # build and package
+python main.py -b <board> -a <adapter> --skipimage                      # build stage only
+python main.py -b <board> -a <adapter> --skipbuild                      # image stage only
+python main.py -b <board> -a <adapter> -p KEY:VALUE                     # pass a parameter
+python main.py -b <board> -a <adapter> -p KEY                           # set KEY=true
 python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug  # config only
-python main.py --help                                            # show help
+python main.py --help                                                   # show help
 ```
 
 Argument file support: `python main.py @args.txt`
@@ -48,7 +48,7 @@ Argument file support: `python main.py @args.txt`
 | `--skipbuild` | No | `false` | Skip the build stage |
 | `--skipimage` | No | `false` | Skip the image stage |
 | `-p`, `--param KEY[:VALUE]` | No | None | Set a parameter; see Build Parameters |
-| `--debug [PATTERN]` | No | Empty | Print config and open a shell before matching build actions. See Debugging |
+| `--debug [PATTERN]` | No | Empty | Print config and open a shell before matching build actions; see [Debugging](DEVELOPER.md#debugging) |
 
 ## Outputs
 
@@ -58,11 +58,3 @@ Argument file support: `python main.py @args.txt`
 | `build/<board>/_image/` | Image-stage workdir |
 | `outputs/<board>/` | Generated disk images |
 | `logs/<board>/` | Command logs |
-
-## Debugging
-
-`--debug` prints the final config and opens a shell before matched build actions.
-
-```sh
-python main.py -b <board> -a <adapter> --debug 'kernel:*' --debug 'uboot:1'
-```

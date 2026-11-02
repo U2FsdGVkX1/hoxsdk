@@ -31,11 +31,11 @@ class Manager:
         params: dict[str, str] | None = None,
     ):
         self.config = config
-        self.boarddir = boarddir.resolve()
-        self.adapterdir = adapterdir.resolve()
-        self.builddir = builddir.resolve()
-        self.outputdir = outputdir.resolve()
-        self.logdir = logdir.resolve()
+        self.boarddir = boarddir
+        self.adapterdir = adapterdir
+        self.builddir = builddir
+        self.outputdir = outputdir
+        self.logdir = logdir
         self.debug = tuple(debug or [])
         self.params = dict(params or {})
 
@@ -139,7 +139,8 @@ class Manager:
                 if not shutil.which(tool):
                     raise RuntimeError(f"Required tool '{tool}' not found in PATH")
 
-            workdir = (self.builddir / "_image").resolve()
+            workdir = self.builddir / "_image"
+            # Install scripts compare $ROOTFS with findmnt output, so it must be a real path.
             rootfs = (workdir / "rootfs").resolve()
             rootfs.mkdir(parents=True, exist_ok=True)
             env = {

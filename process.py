@@ -12,7 +12,7 @@ _command_log: ContextVar[Path | None] = ContextVar("command_log", default=None)
 
 @contextmanager
 def command_log(path: Path) -> Iterator[None]:
-    token = _command_log.set(path.resolve())
+    token = _command_log.set(path)
     try:
         yield
     finally:

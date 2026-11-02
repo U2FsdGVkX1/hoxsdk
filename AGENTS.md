@@ -1,60 +1,30 @@
-# Hox SDK Skill
+# Hox SDK
 
-## Purpose
+Hox SDK builds artifacts and disk images from a board config and an adapter config. It is configuration-driven: prefer changing board/adapter configs, install snippets, assets, and docs over framework code.
 
-Use this skill when helping with Hox SDK board configs, adapter configs, modules, image customization, actions, or SDK documentation.
+## Start Here
 
-The SDK is configuration-driven. Prefer changes to board configs, adapter configs, install snippets, assets, and docs before changing framework code.
+- `docs/en_US/DEVELOPER.md` — config model, modules, install snippets, debugging
+- `docs/en_US/actions/` — action fields
+- `boards/<board>/config.py`, `boards/common.py`, `adapters/<adapter>/`
 
-## Core Rule
+When the docs are not enough, read the code. Don't invent config or action fields.
 
-If required information is unknown, ask the developer before acting. Do not guess architecture, board name, adapter name, boot flow, partition layout, toolchain, artifact names, firmware paths, environment variables, deployment steps, or action behavior.
+## Rules
 
-## Boundaries
+- Ask the developer when the board or adapter is ambiguous, or when architecture, boot flow, partition layout, toolchain, firmware, or deployment details are missing. Don't guess them.
+- Prefer the shared helpers in `boards/common.py` over hand-writing partitions, images, or firmware modules.
+- If a request can't be expressed with existing configs, snippets, or actions, ask before changing `main.py`, `manager.py`, `hox.py`, `process.py`, or `actions/*.py`.
+- Don't assume one board represents all boards, or that shell helpers from one adapter exist in another.
+- Use `ctx.BOARD_DIR` / `ctx.ADAPTER_DIR` for local paths, never absolute workspace paths.
+- Don't change unrelated files or undo unrelated changes.
 
-- Do not modify `main.py`, `manager.py`, `hox.py`, `process.py`, or `actions/*.py` unless the developer explicitly asks for framework changes or a new action is truly required.
-- Do not assume one existing board represents all supported boards.
-- Do not run full builds or image generation unless the developer asks or explicitly approves it.
-- Do not rewrite unrelated files or undo unrelated changes.
+## Running
 
-## Read First
+- Validate config changes with `python main.py -b <board> -a <adapter> --skipbuild --skipimage --debug`. It only evaluates and prints the config.
+- Ask before running anything that builds or generates images.
+- When the build stage runs, `--debug` opens an interactive shell before matched build actions (all of them if no pattern is given).
 
-- `docs/en_US/DEVELOPER.md`
-- Current board config: `boards/<board>/config.py`
-- Shared helpers: `boards/common.py`
-- Relevant adapter config and install snippets: `adapters/<adapter>/config.py` and `adapters/<adapter>/*.sh`
-- Action docs in `docs/en_US/actions/` when action fields are needed
+## Docs
 
-## Mental Model
-
-- Entry: `python main.py -b <board> -a <adapter>`
-- `board` is a path relative to `boards/`; `adapter` is a directory name under `adapters/`
-- `boards/<board>/config.py` should export `configure(ctx)` and use `ctx.adapter` to load the selected adapter's module list
-- `ctx.BOARD_DIR` is the absolute path to the selected board directory
-- Modules use `build_after` and `install_after` for sequencing; modules without unsatisfied dependencies run concurrently during build
-- Build artifacts live under `build/<board>/<module>/` and are available to install snippets via `MODULE_DIR` or `BUILD_DIR`
-- Install snippets are declared as file paths in module `install` arrays
-- `--debug` prints the final config; with a pattern it opens an interactive shell before matched actions and forces sequential build execution
-
-## Config Rules
-
-- Preserve config field names exactly: `partitions`, `images`, `images[].partitions`, `modules`, etc.
-- Use `ctx.BOARD_DIR` for board-local paths instead of absolute workspace paths
-- Use `.env` only when one action must pass values to later actions in the same module
-- Prefer action constructors imported from `actions`, such as `from actions import git` and `git(src=...)`; do not invent action fields — read `docs/en_US/actions/` or `actions/<use>.py`
-
-## Image Script Rules
-
-- Adapter snippets go under `adapters/<adapter>/`; board snippets go under `boards/<board>/`
-- Use module `install_after` to control install order
-- Use documented environment variables (`ROOTFS`, `BOARD_DIR`, `ADAPTER_DIR`, `MODULE_DIR`, `BUILD_DIR`, `OUTPUT_DIR`, `ARCH`)
-- Do not assume helper shell functions exist across adapters
-
-## Ask Before Acting
-
-Ask the developer when:
-
-- The board or adapter is ambiguous
-- Required boot, partition, toolchain, firmware, or deployment details are missing
-- The requested behavior cannot be expressed with existing config, scripts, or actions
-- A full build or image generation may be needed
+`docs/en_US/` and `docs/zh_CN/` mirror each other. Update both together and keep their structure and formatting identical.

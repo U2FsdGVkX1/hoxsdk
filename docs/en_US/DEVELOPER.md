@@ -151,7 +151,7 @@ All snippets run in one shell session in topological order determined by `instal
 
 - `default_partitions()` — standard partition layout (rootfs, boot, efi).
 - `default_images()` — standard disk image layout (sdcard.img).
-- `firmware(arch)` — returns a namespace with `opensbi`, `uboot`, and `kernel` factory functions. Common parameters: `src`, `args`, `prebuild`, `postbuild`, `install`, `build_after`, `build_before`, `install_after`, `install_before`. Additionally, `uboot` and `kernel` accept `defconfig`.
+- `firmware(arch)` — returns a namespace with `opensbi`, `uboot`, and `kernel` factory functions. Common parameters: `src`, `args`, `branch`, `hash`, `prebuild`, `postbuild`, `env`, `install`, `build_after`, `build_before`, `install_after`, `install_before`. Additionally, `uboot` and `kernel` accept `defconfig`. `branch` and `hash` are passed to the `git` action; `env` is merged over the default module environment (`CROSS_COMPILE`, `ARCH`, ...) and can override it.
 
 Import API types from `hox` and action constructors from `actions`:
 

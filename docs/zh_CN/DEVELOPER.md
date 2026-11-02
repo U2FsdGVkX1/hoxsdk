@@ -151,7 +151,7 @@ Module(
 
 - `default_partitions()` — 标准分区布局（rootfs、boot、efi）。
 - `default_images()` — 标准磁盘镜像布局（sdcard.img）。
-- `firmware(arch)` — 返回包含 `opensbi`、`uboot` 和 `kernel` 工厂函数的命名空间。通用参数：`src`、`args`、`prebuild`、`postbuild`、`install`、`build_after`、`build_before`、`install_after`、`install_before`。此外 `uboot` 和 `kernel` 还接受 `defconfig`。
+- `firmware(arch)` — 返回包含 `opensbi`、`uboot` 和 `kernel` 工厂函数的命名空间。通用参数：`src`、`args`、`branch`、`hash`、`prebuild`、`postbuild`、`env`、`install`、`build_after`、`build_before`、`install_after`、`install_before`。此外 `uboot` 和 `kernel` 还接受 `defconfig`。`branch` 和 `hash` 透传给 `git` action；`env` 合并到默认的 module 环境变量（`CROSS_COMPILE`、`ARCH` 等）之上，可覆盖默认值。
 
 从 `hox` 导入 API 类型，从 `actions` 导入 action 构造器：
 

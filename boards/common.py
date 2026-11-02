@@ -59,8 +59,11 @@ def firmware(arch: str):
     def opensbi(
         src,
         args="PLATFORM=generic",
+        branch=None,
+        hash=None,
         prebuild=(),
         postbuild=(),
+        env=None,
         install=(),
         build_after=(),
         build_before=(),
@@ -69,22 +72,34 @@ def firmware(arch: str):
     ):
         return Module(
             name="opensbi",
-            build=[git(src=src), *prebuild, make(args=args), *postbuild],
+            build=[
+                git(src=src, branch=branch, hash=hash),
+                *prebuild,
+                make(args=args),
+                *postbuild,
+            ],
             install=install,
             build_after=build_after,
             build_before=build_before,
             install_after=install_after,
             install_before=install_before,
             requires=["git", "patch", "make", gcc],
-            env={"CROSS_COMPILE": cross, "ARCH": arch_flag["opensbi"]},
+            env={
+                "CROSS_COMPILE": cross,
+                "ARCH": arch_flag["opensbi"],
+                **(env or {}),
+            },
         )
 
     def uboot(
         src,
         defconfig,
         args="",
+        branch=None,
+        hash=None,
         prebuild=(),
         postbuild=(),
+        env=None,
         install=(),
         build_after=(),
         build_before=(),
@@ -94,7 +109,7 @@ def firmware(arch: str):
         return Module(
             name="uboot",
             build=[
-                git(src=src),
+                git(src=src, branch=branch, hash=hash),
                 *prebuild,
                 make(args=defconfig),
                 make(args=args),
@@ -106,15 +121,22 @@ def firmware(arch: str):
             install_after=install_after,
             install_before=install_before,
             requires=["git", "patch", "make", gcc],
-            env={"CROSS_COMPILE": cross, "ARCH": arch_flag["uboot"]},
+            env={
+                "CROSS_COMPILE": cross,
+                "ARCH": arch_flag["uboot"],
+                **(env or {}),
+            },
         )
 
     def kernel(
         src,
         defconfig,
         args="",
+        branch=None,
+        hash=None,
         prebuild=(),
         postbuild=(),
+        env=None,
         install=(KERNEL_INSTALL,),
         build_after=(),
         build_before=(),
@@ -124,7 +146,7 @@ def firmware(arch: str):
         return Module(
             name="kernel",
             build=[
-                git(src=src),
+                git(src=src, branch=branch, hash=hash),
                 *prebuild,
                 make(args=defconfig),
                 make(args=args),
@@ -143,6 +165,7 @@ def firmware(arch: str):
                 "ARCH": arch_flag["kernel"],
                 "INSTALL_MOD_STRIP": "1",
                 "XZ_DEFAULTS": "--check=crc32",
+                **(env or {}),
             },
         )
 

@@ -1,12 +1,12 @@
 import shutil
 from pathlib import Path
 
-from actions.base import BaseAction
+from actions.base import BaseAction, PathArg
 
 
 class Action(BaseAction):
-    src: Path
-    dest: Path
+    src: PathArg
+    dest: PathArg
 
     async def run(self, cwd: Path, env: dict[str, str]) -> None:
         src = cwd / self.src

@@ -3,12 +3,12 @@ from pathlib import Path
 
 from pydantic import Field
 
-from actions.base import BaseAction
+from actions.base import BaseAction, PathArg
 from process import shell
 
 
 class Action(BaseAction):
-    patches: Sequence[Path] = Field(default_factory=tuple)
+    patches: Sequence[PathArg] = Field(default_factory=tuple)
     gitam: bool = False
 
     async def run(self, cwd: Path, env: dict[str, str]) -> None:

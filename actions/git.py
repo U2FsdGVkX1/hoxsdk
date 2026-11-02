@@ -2,13 +2,13 @@ from pathlib import Path
 
 from pydantic import Field
 
-from actions.base import BaseAction
+from actions.base import BaseAction, PathArg
 from process import shell
 
 
 class Action(BaseAction):
     src: str
-    path: Path = Path(".")
+    path: PathArg = Path(".")
     branch: str | None = None
     commit_hash: str | None = Field(default=None, alias="hash")
 

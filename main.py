@@ -13,6 +13,7 @@ class Args(argparse.Namespace):
     desktop: str
     skipbuild: bool
     skipimage: bool
+    modules: list[str]
     debug: list[str]
     params_raw: list[tuple[str, str]]
     params: dict[str, str]
@@ -35,6 +36,19 @@ def parse_arguments() -> Args:
     parser.add_argument("--desktop", type=str, default="minimal", help="Desktop profile name")
     parser.add_argument("--skipbuild", action="store_true", help="Skip build stage")
     parser.add_argument("--skipimage", action="store_true", help="Skip image stage")
+    parser.add_argument(
+        "-m",
+        "--module",
+        dest="modules",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help=(
+            "Build only modules matching PATTERN (shell-style wildcards); "
+            "other modules keep their existing build output. Repeatable "
+            "(e.g. -m mesa -m 'img-*')."
+        ),
+    )
     parser.add_argument(
         "--debug",
         action="append",
@@ -96,6 +110,7 @@ async def main(args: Args) -> None:
         builddir=builddir,
         outputdir=outputdir,
         logdir=logdir,
+        modules=args.modules,
         debug=args.debug,
         params=args.params,
     )

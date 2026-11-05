@@ -27,6 +27,7 @@ class Manager:
     builddir: Path
     outputdir: Path
     logdir: Path
+    modules: list[str] = field(default_factory=list)
     debug: list[str] = field(default_factory=list)
     params: dict[str, str] = field(default_factory=dict)
 
@@ -45,6 +46,11 @@ class Manager:
         module_map = { module.name: module for module in self.config.modules }
         order = TopologicalSorter(self._dependencies(stage)).static_order()
         return [module_map[name] for name in order]
+
+    def _selected(self, module: Module) -> bool:
+        return not self.modules or any(
+            fnmatchcase(module.name, pattern) for pattern in self.modules
+        )
 
     async def build(self) -> None:
         async def run_build(module: Module) -> None:
@@ -74,7 +80,7 @@ class Manager:
         async def run_when_ready(module: Module) -> None:
             for dependency in depends_map[module.name]:
                 await finished[dependency].wait()
-            if module.build:
+            if module.build and self._selected(module):
                 async with serial:
                     await run_build(module)
             finished[module.name].set()
